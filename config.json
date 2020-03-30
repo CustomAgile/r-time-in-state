@@ -1,5 +1,15 @@
 {
     "name": "TS Time In State",
-    "sdk": "2.0",
-    "className": "TSTimeInState"
+    "sdk": "2.1",
+    "className": "TSTimeInState",
+    "repository": "https://github.com/CustomAgile/committed-vs-delivered",
+    "javascript": [
+        "node_modules/@customagile/ancestor-pi-multi-level-pi-app-filter/index.js",
+        "src/javascript/utils/*.js",
+        "src/javascript/*.js"
+    ],
+    "css": [
+        "src/style/app.css",
+        "node_modules/@customagile/ancestor-pi-multi-level-pi-app-filter/index.css"
+    ]
 }

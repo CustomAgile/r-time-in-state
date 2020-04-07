@@ -1,10 +1,10 @@
-Ext.define('CA.technicalservices.ColumnPickerDialog',{
+Ext.define('CA.technicalservices.ColumnPickerDialog', {
     extend: 'Rally.ui.dialog.Dialog',
     alias: 'widget.tscolumnpickerdialog',
-    
+
     width: 200,
     closable: true,
-    
+
     config: {
         /**
          * @cfg {String}
@@ -24,29 +24,29 @@ Ext.define('CA.technicalservices.ColumnPickerDialog',{
          *  
          */
         pickableColumns: [],
-        
+
         selectionButtonText: 'Use'
-        
+
     },
-    
+
     items: [{
         xtype: 'panel',
         border: false,
         items: [{
-            xtype:'container', 
-            itemId:'grid_container',
+            xtype: 'container',
+            itemId: 'grid_container',
             layout: 'fit',
             height: 325
         }]
     }],
 
-    constructor: function(config) {
+    constructor: function (config) {
         this.mergeConfig(config);
 
         this.callParent([this.config]);
     },
 
-    initComponent: function() {
+    initComponent: function () {
         this.callParent(arguments);
         this.addEvents(
             /**
@@ -57,13 +57,13 @@ Ext.define('CA.technicalservices.ColumnPickerDialog',{
              */
             'columnsChosen'
         );
-        
+
         this._buildButtons();
         //this._buildSearchBar();
         this._buildGrid();
     },
-    
-    _buildButtons: function() {
+
+    _buildButtons: function () {
         this.down('panel').addDocked({
             xtype: 'toolbar',
             dock: 'bottom',
@@ -80,7 +80,7 @@ Ext.define('CA.technicalservices.ColumnPickerDialog',{
                     cls: 'primary small',
                     scope: this,
                     userAction: 'clicked done in dialog',
-                    handler: function() {
+                    handler: function () {
                         var selectedRecords = this.getRecordsWithSelection();
                         this.fireEvent('columnsChosen', this, selectedRecords);
                         this.close();
@@ -97,22 +97,22 @@ Ext.define('CA.technicalservices.ColumnPickerDialog',{
             ]
         });
     },
-    
-    _buildGrid: function() {
+
+    _buildGrid: function () {
         var mode = this.multiple ? 'MULTI' : 'SINGLE';
         this.selectionModel = Ext.create('Rally.ui.selection.CheckboxModel', {
             mode: mode,
             allowDeselect: true
         });
-        
+
         var pickableColumns = this.pickableColumns;
-        
-        var store = Ext.create('Rally.data.custom.Store',{
+
+        var store = Ext.create('Rally.data.custom.Store', {
             data: this.pickableColumns,
-            pageSize: 75
+            pageSize: 200
         });
-        
-        
+
+
         this.grid = Ext.create('Rally.ui.grid.Grid', {
             selModel: this.selectionModel,
             enableColumnHide: false,
@@ -120,39 +120,40 @@ Ext.define('CA.technicalservices.ColumnPickerDialog',{
             columnCfgs: this._getGridColumns(),
             showPagingToolbar: false,
             store: store,
+            showRowActionsColumn: false,
             listeners: {
-                viewready: function(grid) {
+                viewready: function (grid) {
                     var selectionModel = grid.getSelectionModel();
-                    
-                    Ext.Array.each(pickableColumns, function(col, idx){
-                        if ( !col.hidden ) {
-                            selectionModel.select(grid.store.data.items[idx],true);
+
+                    Ext.Array.each(pickableColumns, function (col, idx) {
+                        if (!col.hidden) {
+                            selectionModel.select(grid.store.data.items[idx], true);
                         }
                     });
                 }
             }
         });
-        
+
         this.down('#grid_container').add(this.grid);
     },
-    
-    _getGridColumns: function() {
+
+    _getGridColumns: function () {
         return [
             { dataIndex: 'text', flex: 1 }
         ];
     },
-    
-    getRecordsWithSelection: function() {
-        var selected_items = this.grid.getSelectionModel().getSelection(); 
+
+    getRecordsWithSelection: function () {
+        var selected_items = this.grid.getSelectionModel().getSelection();
         var selected_items_by_dataindex = {};
-        Ext.Array.each(selected_items, function(selected_item){
+        Ext.Array.each(selected_items, function (selected_item) {
             selected_items_by_dataindex[selected_item.get('text')] = selected_item.getData();
         });
-        
-        Ext.Array.each(this.pickableColumns, function(pickableColumn){
+
+        Ext.Array.each(this.pickableColumns, function (pickableColumn) {
             pickableColumn.hidden = Ext.isEmpty(selected_items_by_dataindex[pickableColumn.text]);
         });
-        
+
         return this.pickableColumns;
     }
 });

@@ -9,18 +9,43 @@ Ext.define("TSTimeInState", {
     items: [
         {
             xtype: 'container',
-            itemId: 'selector_box',
+            layout: 'vbox',
             region: 'north',
-            layout: 'hbox',
-            defaults: { margin: 10, layout: 'vbox' },
             items: [
-                { xtype: 'container', itemId: 'artifact_box' },
-                { xtype: 'container', itemId: 'state_selector_box' },
-                { xtype: 'container', itemId: 'date_selector_box' },
-                { xtype: 'container', itemId: 'metric_box', layout: 'column', align: 'center', width: 110 },
-                { xtype: 'container', itemId: 'project_box' },
-                { xtype: 'container', flex: 1 },
-                { xtype: 'container', itemId: 'button_box', layout: 'hbox' }
+                {
+                    id: Utils.AncestorPiAppFilter.RENDER_AREA_ID,
+                    xtype: 'container',
+                    width: '100%',
+                    layout: {
+                        type: 'hbox',
+                        align: 'middle',
+                        defaultMargins: '0 10 10 0',
+                    }
+                }, {
+                    id: Utils.AncestorPiAppFilter.PANEL_RENDER_AREA_ID,
+                    xtype: 'container',
+                    width: '100%',
+                    layout: {
+                        type: 'hbox',
+                        align: 'middle',
+                        defaultMargins: '0 10 10 0',
+                    }
+                },
+                {
+                    xtype: 'container',
+                    itemId: 'selector_box',
+                    layout: 'hbox',
+                    defaults: { margin: 10, layout: 'vbox' },
+                    items: [
+                        { xtype: 'container', itemId: 'artifact_box' },
+                        { xtype: 'container', itemId: 'state_selector_box' },
+                        { xtype: 'container', itemId: 'date_selector_box' },
+                        { xtype: 'container', itemId: 'metric_box', layout: 'column', align: 'center', width: 110 },
+                        { xtype: 'container', itemId: 'project_box' },
+                        { xtype: 'container', flex: 1 },
+                        { xtype: 'container', itemId: 'button_box', layout: 'hbox' }
+                    ]
+                }
             ]
         },
         { xtype: 'container', itemId: 'display_box', region: 'center', layout: 'fit' }
@@ -30,7 +55,10 @@ Ext.define("TSTimeInState", {
         name: "TSTimeInState"
     },
 
-    launch: function () {
+    launch: async function () {
+        Rally.data.wsapi.Proxy.superclass.timeout = 180000;
+        Rally.data.wsapi.batch.Proxy.superclass.timeout = 180000;
+        this.setLoading();
 
         this._setDisplayFormats();
 
@@ -65,6 +93,7 @@ Ext.define("TSTimeInState", {
                             this._addSelectors();
                         },
                         failure: function (msg) {
+                            this.setLoading(false);
                             Ext.Msg.alert('', msg);
                         }
                     });
@@ -72,7 +101,99 @@ Ext.define("TSTimeInState", {
             }
         });
 
+        this.projects = await this._getProjectList();
+        this._addMultiLevelFilters();
 
+        this.setLoading(false);
+    },
+
+    _addMultiLevelFilters: function () {
+        this.ancestorFilterPlugin = Ext.create('Utils.AncestorPiAppFilter', {
+            ptype: 'UtilsAncestorPiAppFilter',
+            pluginId: 'ancestorFilterPlugin',
+            settingsConfig: {},
+            whiteListFields: [
+                'Tags',
+                'Milestones',
+                'c_EnterpriseApprovalEA',
+                'c_EAEpic',
+                'DisplayColor'
+            ],
+            filtersHidden: false,
+            visibleTab: this.model_name,
+            listeners: {
+                scope: this,
+                ready(plugin) {
+                    plugin.addListener({
+                        scope: this,
+                        select: this._clearGrid,
+                        change: this._clearGrid
+                    });
+
+                    // this._filtersChange();
+                },
+                failure(msg) {
+                    this.setLoading(false);
+                    Rally.ui.notify.Notifier.showError({ message: msg });
+                }
+            }
+        });
+        this.addPlugin(this.ancestorFilterPlugin);
+    },
+
+    async _getProjectList() {
+        let projectStore = Ext.create('Rally.data.wsapi.Store', {
+            model: 'Project',
+            fetch: ['Name', 'ObjectID', 'Children'],
+            filters: [{ property: 'ObjectID', value: this.getContext().getProject().ObjectID }],
+            limit: 1,
+            pageSize: 1,
+            autoLoad: false
+        });
+
+        let results = await projectStore.load();
+        if (results) {
+            let projects = await this._getAllChildProjects(results);
+            let projectIds = _.map(projects, (p) => {
+                return p.get('ObjectID');
+            });
+            return projectIds;
+        }
+        else {
+            return [];
+        }
+    },
+
+    async _getAllChildProjects(allRoots = [], fetch = ['Name', 'Children', 'ObjectID']) {
+        if (!allRoots.length) { return []; }
+
+        const promises = allRoots.map(r => this._wrap(r.getCollection('Children', { fetch, limit: Infinity }).load()));
+        const children = _.flatten(await Promise.all(promises));
+        const decendents = await this._getAllChildProjects(children, fetch);
+        const removeDupes = {};
+        let finalResponse = _.flatten([...decendents, ...allRoots, ...children]);
+
+        // eslint-disable-next-line no-return-assign
+        finalResponse.forEach(s => removeDupes[s.get('_ref')] = s);
+        finalResponse = Object.values(removeDupes);
+        return finalResponse;
+    },
+
+    async _wrap(deferred) {
+        if (!deferred || !_.isFunction(deferred.then)) {
+            return Promise.reject(new Error('Wrap cannot process this type of data into a ECMA promise'));
+        }
+        return new Promise((resolve, reject) => {
+            deferred.then({
+                success(...args) {
+                    resolve(...args);
+                },
+                failure(error) {
+                    this.setLoading(false);
+                    reject(error);
+                }
+            });
+        });
     },
 
     _setDisplayFormats: function () {
@@ -135,8 +256,6 @@ Ext.define("TSTimeInState", {
 
         this._addDateSelectors(date_chooser_box);
 
-        var project_oid = this.getContext().getProject().ObjectID;
-
         metric_box.add({
             xtype: 'tsmultiprojectpicker',
             itemId: 'project_selector',
@@ -185,6 +304,7 @@ Ext.define("TSTimeInState", {
             itemId: 'export_button',
             cls: 'secondary small',
             text: '<span class="icon-export"> </span>',
+            height: 26,
             margin: '10 0 0 5',
             disabled: true,
             listeners: {
@@ -273,15 +393,24 @@ Ext.define("TSTimeInState", {
         if (attributeDefn.AttributeType == "STRING" && attributeDefn.Constrained == true) {
             return true;
         }
-        //this.logger.log(field);
 
         return false;
     },
 
-    _updateData: function () {
-        var model = this.model;
-        var field_name = this.state_field_name;
+    onTimeboxScopeChange: function () {
+        this.callParent(arguments);
+        this._clearGrid();
+    },
+
+    _clearGrid: function () {
         this.down('#export_button').setDisabled(true);
+        var container = this.down('#display_box');
+        container.removeAll();
+    },
+
+    _updateData: async function () {
+        this._clearGrid();
+        var field_name = this.state_field_name;
 
         this.startState = this.down('#start_state_selector').getValue();
         this.endState = this.down('#end_state_selector').getValue();
@@ -292,29 +421,141 @@ Ext.define("TSTimeInState", {
         this.startDate = this.down('#start_date_selector').getValue();
         this.endDate = this.down('#end_date_selector').getValue();
 
+        if (!this.startDate) {
+            Ext.Msg.alert('', 'Start date is required');
+            return;
+        }
+
         if (Ext.isEmpty(this.startState) || Ext.isEmpty(this.endState)) {
             return;
         }
 
         Deft.Chain.pipeline([
-            function () { return this._setValidStates(this._getModelNameFromModel(this.model), field_name) },
+            function () { return this._setValidStates(this._getModelName(), field_name) },
             function (states) { return this._getChangeSnapshots(field_name, this.model); },
-            this._addProjectsToSnapshots,
+            // this._addProjectsToSnapshots,
             this._organizeSnapshotsByOid,
             function (snaps_by_oid) { return this._setTimeInStatesForAll(snaps_by_oid, field_name); }
         ], this).then({
             scope: this,
-            success: function (rows_by_oid) {
+            success: async function (rows_by_oid) {
                 var rows = Ext.Object.getValues(rows_by_oid);
                 rows = this._removeItemsOutsideTimeboxes(rows);
+                rows = await this._syncWithCurrentData(rows);
 
-                this._makeGrid(rows);
+                if (rows) {
+                    this._makeGrid(rows);
+                }
             },
             failure: function (msg) {
+                this.setLoading(false);
                 Ext.Msg.alert('Problem loading data', msg);
             }
 
         });
+    },
+
+    _syncWithCurrentData: async function (rows) {
+        if (!rows.length) {
+            return rows;
+        }
+
+        let fetch = ['ObjectID', 'FormattedID', 'Name', 'Project', 'Value'];
+        let columns = this._getPickedColumns();
+        for (let c of columns) {
+            fetch.push(c.dataIndex);
+        }
+
+        let records = await this._getCurrentDataWithFilters(rows, fetch);
+
+        if (!records) {
+            Rally.ui.notify.Notifier.showError({ message: 'Failed while loading records. Result set might be too large.' });
+            return null;
+        }
+
+        rows = _.filter(rows, (r) => {
+            for (let record of records) {
+                if (record.get('ObjectID') === r.ObjectID) {
+                    for (let f of fetch) {
+                        if (f === 'Project') {
+                            r.__ProjectName = record.get(f).Name;
+                        }
+                        else {
+                            r[f] = CustomAgile.ui.renderer.RecordFieldRendererFactory.getFieldDisplayValue(record, f, '; ', true);
+                        }
+                    }
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        return rows;
+    },
+
+    _shouldFilterByTimebox: function () {
+        let timeboxScope = this.getContext().getTimeboxScope();
+        if (timeboxScope) {
+            let type = timeboxScope.type;
+            let model = this._getModelName().toLowerCase();
+            if (type === 'iteration' && model.indexOf('portfolioitem') > -1) {
+                return false;
+            }
+            else if (model.indexOf('portfolioitem') > -1 && model.indexOf('feature') === -1) {
+                return false;
+            }
+            else {
+                return true;
+            }
+        }
+        return false;
+    },
+
+    _getCurrentDataWithFilters: async function (rows, fetch) {
+        this.setLoading('Loading filters and column data');
+
+        let context = this.getContext().getDataContext();
+
+        if (this.searchAllProjects()) {
+            context.project = null;
+        }
+
+        let ids = _.map(rows, r => r.ObjectID);
+        let filters = await this.ancestorFilterPlugin.getAllFiltersForType(this._getModelName(), true).catch((e) => {
+            Rally.ui.notify.Notifier.showError({ message: (e.message || e) });
+        });
+
+        if (this._shouldFilterByTimebox()) {
+            let timeboxScope = this.getContext().getTimeboxScope();
+            if (timeboxScope) {
+                filters.push(timeboxScope.getQueryFilter());
+            }
+        }
+
+        filters.push(new Rally.data.wsapi.Filter({
+            property: 'ObjectID',
+            operator: 'in',
+            value: ids
+        }));
+
+        var config = {
+            model: this._getModelName(),
+            filters,
+            fetch,
+            context,
+            limit: 6000,
+            enablePostGet: true
+        };
+
+        let records;
+        try {
+            records = await this._loadWsapiRecords(config);
+        } catch (e) { };
+
+        this.setLoading(false);
+
+        return records;
     },
 
     _removeItemsOutsideTimeboxes: function (rows) {
@@ -323,9 +564,7 @@ Ext.define("TSTimeInState", {
         }
 
         var filtered_rows = this._getRowsAfter(rows, this.startDate);
-
         filtered_rows = this._getRowsBefore(filtered_rows, this.endDate);
-
         return filtered_rows;
     },
 
@@ -371,7 +610,6 @@ Ext.define("TSTimeInState", {
 
     _calculateTimeInState: function (snapshots, field_name) {
         var me = this;
-
         var entries = {};  // date of entry into state, used for calc
         var last_index = snapshots.length - 1;
 
@@ -420,19 +658,12 @@ Ext.define("TSTimeInState", {
         return row;
     },
 
-    _getModelNameFromModel: function (model) {
-        //        var model_name = model.getName();
-        //        return model_name.replace(/.*\./,'');
+    _getModelName: function () {
         return this.model_name;
     },
 
     _setValidStates: function (model_name, field_name) {
         this.logger.log('_setValidStates', model_name);
-
-        var deferred = Ext.create('Deft.Deferred'),
-            me = this;
-
-        this.logger.log('model:', model_name);
 
         var store = this.down('rallyfieldvaluecombobox').getStore();
         var count = store.getTotalCount();
@@ -446,27 +677,9 @@ Ext.define("TSTimeInState", {
             }
         }
         this.logger.log('allowedStates', values);
-        me.allowedStates = values;
+        this.allowedStates = values;
 
         return values;
-
-        //        this.model.getField(field_name).getAllowedValueStore().load({
-        //            sorters: [{
-        //                    property: 'ValueIndex',
-        //                    direction: 'ASC'
-        //            }],
-        //            callback: function(records, operation, success) {
-        //                me.allowedStates = Ext.Array.map(records, function(allowedValue) {
-        //                    console.log('---', records);
-        //                    //each record is an instance of the AllowedAttributeValue model 
-        //                   return allowedValue.get('StringValue');
-        //                });
-        //                
-        //                deferred.resolve(me.allowedStates);
-        //            }
-        //        });
-
-        //        return deferred.promise;
     },
 
     _organizeSnapshotsByOid: function (snapshots) {
@@ -487,121 +700,78 @@ Ext.define("TSTimeInState", {
     },
 
     _getChangeSnapshots: function (field_name, model) {
-        var change_into_states_filter = Ext.create('Rally.data.lookback.QueryFilter', {
+        var filters = Ext.create('Rally.data.lookback.QueryFilter', {
+            property: '_TypeHierarchy',
+            value: this._getModelName()
+        });
+
+        var projects = this.down('#project_selector').getValue();
+
+        if (this.searchAllProjects()) {
+
+        } else if (projects.length > 0) {
+            var project_filter = Ext.create('Rally.data.lookback.QueryFilter', {
+                property: 'Project',
+                operator: 'in',
+                value: Ext.Array.map(projects, function (p) { return p.ObjectID; })
+            });
+
+            filters = filters.and(project_filter);
+        } else {
+            var project_filter = Ext.create('Rally.data.lookback.QueryFilter', {
+                property: 'Project',
+                operator: 'in',
+                value: this.projects
+            });
+
+            filters = filters.and(project_filter);
+        }
+
+        let endFilter = Ext.create('Rally.data.lookback.QueryFilter', {
+            property: '_ValidTo',
+            operator: '>=',
+            value: Rally.util.DateTime.toIsoString(this.startDate)
+        });
+
+        let change_filters = Ext.create('Rally.data.lookback.QueryFilter', {
             property: '_PreviousValues.' + field_name,
             operator: 'exists',
             value: true
         });
 
-        var model_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-            property: '_TypeHierarchy',
-            value: this._getModelNameFromModel(model)
-        });
+        endFilter = endFilter.and(change_filters);
 
-        var projects = this.down('#project_selector').getValue();
+        // var current_filter = Ext.create('Rally.data.lookback.QueryFilter', {
+        //     property: '__At',
+        //     value: 'current'
+        // });
 
-        var project_filter = null;
-        if (projects.length > 0) {
-            project_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-                property: 'Project',
-                operator: 'in',
-                value: Ext.Array.map(projects, function (p) { return p.ObjectID; })
-            });
-        } else {
-            project_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-                property: '_ProjectHierarchy',
-                value: this.getContext().getProject().ObjectID
-            });
-        }
+        // let dateRangeFilter = endFilter.or(current_filter);
 
-        var current_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-            property: '__At',
-            value: 'current'
-        });
-
-
-        var change_filters = change_into_states_filter.and(model_filter);
-        var current_filters = model_filter.and(current_filter);
-
-        console.log('change_filters', change_filters.toObject());
-        console.log('current_filters', current_filters.toObject());
-
-        var filters = change_filters.or(current_filters);
+        filters = filters.and(endFilter);
 
         console.log('filters:', filters.toObject());
 
         var fetch_base = ['ObjectID', 'FormattedID', 'Name',
             'Project', '_TypeHierarchy', '_PreviousValues',
-            field_name, '_PreviousValues.' + field_name,
-            'Iteration', 'Release', 'State'];
+            field_name, '_PreviousValues.' + field_name];
 
-        var fetch_added = Ext.Array.map(this._getPickedColumns(), function (col) {
-            return col.dataIndex;
-        });
+        var hydrate = ['_PreviousValues.' + field_name, field_name];
 
         var config = {
-            filters: filters.and(project_filter),
-            fetch: Ext.Array.merge(fetch_base, fetch_added),
-            hydrate: ['Iteration', 'Release', '_PreviousValues.' + field_name, 'State', field_name],
-            limit: Infinity
+            filters,
+            fetch: fetch_base,
+            hydrate,
+            limit: Infinity,
+            enablePostGet: true,
+            compress: true
         };
 
         return this._loadSnapshots(config);
     },
 
-    _addProjectsToSnapshots: function (snapshots) {
-        var deferred = Ext.create('Deft.Deferred'),
-            me = this;
-        var project_oids = Ext.Array.map(snapshots, function (snap) { return snap.get('Project') });
-
-        if (project_oids.length === 0) {
-            return snapshots;
-        }
-        var unique_project_oids = Ext.Array.unique(project_oids);
-
-        var filters = Ext.Array.map(unique_project_oids, function (oid) {
-            return { property: 'ObjectID', value: oid };
-        });
-
-        var config = {
-            model: 'Project',
-            filters: Rally.data.wsapi.Filter.or(filters),
-            fetch: ['ObjectID', 'Name'],
-            limit: Infinity
-        };
-
-        this.setLoading('Loading Project Names...');
-
-        this._loadWsapiRecords(config).then({
-            success: function (projects) {
-                var projects_by_oid = {};
-                Ext.Array.each(projects, function (project) {
-                    var oid = project.get('ObjectID');
-                    projects_by_oid[oid] = project;
-                });
-
-                Ext.Array.each(snapshots, function (snap) {
-                    var oid = snap.get('Project');
-                    if (!Ext.isEmpty(projects_by_oid[oid])) {
-                        snap.set('__Project', projects_by_oid[oid].getData());
-                        snap.set('__ProjectName', projects_by_oid[oid].get('Name'));
-                    } else {
-                        snap.set('__Project', {});
-                        snap.set('__ProjectName', "");
-                    }
-                });
-                me.setLoading(false);
-                deferred.resolve(snapshots);
-            },
-            failure: function (msg) {
-                deferred.reject(msg);
-            }
-        });
-
-        return deferred.promise;
-    },
-
     _loadSnapshots: function (config) {
+        console.log('loading snapshots');
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
         var default_config = {
@@ -613,12 +783,17 @@ Ext.define("TSTimeInState", {
 
         Ext.create('Rally.data.lookback.SnapshotStore', Ext.Object.merge(default_config, config)).load({
             callback: function (records, operation, successful) {
+                me.setLoading(false);
                 if (successful) {
-                    me.setLoading(false);
                     deferred.resolve(records);
                 } else {
                     me.logger.log("Failed: ", operation);
-                    deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
+                    if (operation.error && operation.error.errors) {
+                        deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
+                    }
+                    else {
+                        deferred.reject('Unkown error while fetching historical snapshots. Filtered result set might be too large.');
+                    }
                 }
             }
         });
@@ -633,6 +808,7 @@ Ext.define("TSTimeInState", {
                 deferred.resolve(model);
             },
             failure: function () {
+                this.setLoading(false);
                 deferred.reject('cannot load model');
             }
         });
@@ -653,7 +829,13 @@ Ext.define("TSTimeInState", {
                     deferred.resolve(records);
                 } else {
                     me.logger.log("Failed: ", operation);
-                    deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
+                    me.setLoading(false);
+                    if (operation.error && operation.error.errors) {
+                        deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
+                    }
+                    else {
+                        deferred.reject('Unkown error while fetching historical snapshots. Filtered result set might be too large.');
+                    }
                 }
             }
         });
@@ -665,14 +847,13 @@ Ext.define("TSTimeInState", {
         this.down('#export_button').setDisabled(false);
 
         var container = this.down('#display_box');
-        container.removeAll();
-
         var store = Ext.create('Rally.data.custom.Store', { data: rows });
 
         container.add({
             xtype: 'rallygrid',
             store: store,
-            columnCfgs: this._getColumns()
+            columnCfgs: this._getColumns(),
+            showRowActionsColumn: false
         });
     },
 
@@ -706,9 +887,14 @@ Ext.define("TSTimeInState", {
 
 
     _getPickableColumns: function () {
+        var blacklist = ['Attachments', 'Changesets', 'Collaborators', 'Connections', 'Discussion', 'Risks', 'UserStories', 'Children', 'Defects', 'Tasks', 'TestCases', 'RevisionHistory', 'c_SalesforceCase'];
 
         var filtered_fields = Ext.Array.filter(this.model.getFields(), function (field) {
             if (field.hidden) {
+                return false;
+            }
+
+            if (_.contains(blacklist, field.name)) {
                 return false;
             }
 
@@ -725,28 +911,10 @@ Ext.define("TSTimeInState", {
                 return false;
             }
 
-            if (attributeDefn.AttributeType == "STRING") {
-                return true;
-            }
-
-            if (attributeDefn.AttributeType == "DECIMAL") {
-                return true;
-            }
-
-            if (attributeDefn.AttributeType == "BOOLEAN") {
-                return true;
-            }
-
-            if (attributeDefn.AttributeType == "QUANTITY") {
-                return true;
-            }
-
-            //console.log(field.name, field);
-            return false;
+            return true;
         });
 
         var object_renderer = function (value, meta, record) {
-            console.log('value:', value);
             if (Ext.isEmpty(value)) { return ""; }
             if (Ext.isObject(value)) { return value.Name || value.DisplayName; }
 
@@ -830,6 +998,10 @@ Ext.define("TSTimeInState", {
         return columns;
     },
 
+    searchAllProjects() {
+        return this.ancestorFilterPlugin && this.ancestorFilterPlugin.getIgnoreProjectScope();
+    },
+
     _export: function () {
         var me = this;
         this.logger.log('_export');
@@ -879,6 +1051,13 @@ Ext.define("TSTimeInState", {
 
     isExternal: function () {
         return typeof (this.getAppId()) == 'undefined';
+    },
+
+    getSettingsFields: function () {
+        return [{
+            xtype: 'text',
+            text: ''
+        }];
     },
 
     //onSettingsUpdate:  Override

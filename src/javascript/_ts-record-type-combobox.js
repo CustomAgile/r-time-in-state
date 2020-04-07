@@ -1,4 +1,4 @@
-Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
+Ext.define('Rally.ui.combobox.CustomPortfolioItemTypeComboBox', {
 
     extend: 'Rally.ui.combobox.ComboBox',
     alias: 'widget.tsrecordtypecombobox',
@@ -6,7 +6,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
     preferenceName: 'tsTypeCombo',
 
     config: {
-        
+
         typeFilter: [
             {
                 property: 'Parent.Name',
@@ -19,24 +19,24 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
                 value: 'true'
             }
         ],
-        
+
         typeSorter: [{
             property: 'Ordinal',
             direction: 'Desc'
         }],
-        
+
         valueField: 'TypePath',
         displayField: 'DisplayName'
     },
-    
-    constructor: function(config) {
-        if ( Ext.isEmpty(config.typeFilter) || config.typeFilter == [] || config.typeFilter == {} ) {
-            config.typeFilter = [{ property:'ObjectID', operator: '>', value: 0 }];
+
+    constructor: function (config) {
+        if (Ext.isEmpty(config.typeFilter) || config.typeFilter == [] || config.typeFilter == {}) {
+            config.typeFilter = [{ property: 'ObjectID', operator: '>', value: 0 }];
         }
-        if ( Ext.isObject( config.typeFilter ) ) {
+        if (Ext.isObject(config.typeFilter)) {
             config.typeFilter = [config.typeFilter];
         }
-        
+
         var defaultConfig = {
             defaultSelectionPosition: 'last',
             editable: false,
@@ -50,7 +50,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
                 sorters: config.typeSorter,
                 filters: config.typeFilter,
                 listeners: {
-                    load: function(store,records){
+                    load: function (store, records) {
                         console.log('types:', records);
                     }
                 }
@@ -68,7 +68,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
         this.callParent([Ext.Object.merge(defaultConfig, config)]);
     },
 
-    initComponent: function() {
+    initComponent: function () {
         this.callParent();
 
         Deft.Promise.all([this.getPreference(), this._loadStore()]).then({
@@ -102,7 +102,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
         return this.getStore().findRecord('_ref', typeRef);
     },
 
-    getTypeWithOrdinal: function(ordinal) {
+    getTypeWithOrdinal: function (ordinal) {
         return this.getStore().findRecord("Ordinal", ordinal);
     },
 
@@ -110,7 +110,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
         return _.map(this.getStore().getRecords(), function (type) { return type.get('TypePath'); });
     },
 
-    _onValueChange: function(field, newValue) {
+    _onValueChange: function (field, newValue) {
         this.savePreference(newValue);
     },
 
@@ -131,11 +131,11 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
         return deferred.promise;
     },
 
-    getPreference: function() {
+    getPreference: function () {
         var deferred = new Deft.Deferred();
 
         Rally.data.PreferenceManager.load(Ext.apply(this._getPreferenceConfig(), {
-            success: function(prefs) {
+            success: function (prefs) {
                 deferred.resolve(prefs[this._getPreferenceName()]);
             },
             scope: this
@@ -144,7 +144,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
         return deferred.promise;
     },
 
-    savePreference: function(value) {
+    savePreference: function (value) {
         var settings = {};
         settings[this._getPreferenceName()] = value;
 
@@ -166,7 +166,7 @@ Ext.define('Rally.ui.combobox.PortfolioItemTypeComboBox', {
         return config;
     },
 
-    _getPreferenceName: function() {
+    _getPreferenceName: function () {
         return this.preferenceName + '-' + this.context.getWorkspace().ObjectID;
     },
 

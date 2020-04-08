@@ -1,12 +1,12 @@
-Ext.define('CA.technicalservices.ProjectPickerDialog',{
+Ext.define('CA.technicalservices.ProjectPickerDialog', {
     extend: 'Rally.ui.dialog.Dialog',
     alias: 'widget.tsprojectpickerdialog',
-    
+
     width: 400,
     closable: true,
-    
+
     selectedRecords: [],
-    
+
     config: {
         /**
          * @cfg {String}
@@ -15,26 +15,26 @@ Ext.define('CA.technicalservices.ProjectPickerDialog',{
         title: 'Choose Project',
 
         selectionButtonText: 'Add'
-        
+
     },
-    
+
     items: [{
         xtype: 'panel',
         border: false,
         items: [{
-            xtype:'container', 
-            itemId:'selector_container',
+            xtype: 'container',
+            itemId: 'selector_container',
             height: 200
         }]
     }],
 
-    constructor: function(config) {
+    constructor: function (config) {
         this.mergeConfig(config);
 
         this.callParent([this.config]);
     },
 
-    initComponent: function() {
+    initComponent: function () {
         this.callParent(arguments);
         this.addEvents(
             /**
@@ -45,69 +45,69 @@ Ext.define('CA.technicalservices.ProjectPickerDialog',{
              */
             'projectschosen'
         );
-        
+
         this._buildButtons();
         this._buildDisplayBar();
         this._updateDisplay();
-        
+
         this._buildProjectGrid();
         //this._buildTree();
     },
-    
-    _buildDisplayBar: function() {
+
+    _buildDisplayBar: function () {
         this.down('panel').addDocked({
-            xtype:'container',
+            xtype: 'container',
             dock: 'top',
             padding: '0 0 10 0',
             layout: 'hbox',
             items: [{
-                xtype:'container',
-                itemId: 'displayBox', 
+                xtype: 'container',
+                itemId: 'displayBox',
                 height: 50,
                 autoScroll: true
             }]
         });
     },
-    
-    getDisplayTemplate: function() {
+
+    getDisplayTemplate: function () {
         return new Ext.XTemplate(
             '<tpl for=".">',
-                '<span class="project-box" id="s{ObjectID}">{Name}</span>',
+            '<span class="project-box" id="s{ObjectID}">{Name}</span>',
             '</tpl>'
         );
     },
-    
-    _updateDisplay: function() {
+
+    _updateDisplay: function () {
         var container = this.down('#displayBox');
         container.removeAll();
-        
-        var sorted_array = Ext.Array.sort(this.selectedRecords, function(a,b) {
-            if ( a.Name < b.Name ) { return -1; }
-            if ( a.Name > b.Name ) { return 1; }
+
+        var sorted_array = Ext.Array.sort(this.selectedRecords, function (a, b) {
+            if (a.Name < b.Name) { return -1; }
+            if (a.Name > b.Name) { return 1; }
             return 0;
         });
-        
-        Ext.Array.each(sorted_array, function(record,idx){
+
+        Ext.Array.each(sorted_array, function (record, idx) {
             container.add({
-                xtype:'button',
+                xtype: 'button',
                 cls: 'project-button',
                 text: "<span class='icon-delete'></span> " + record.Name,
                 listeners: {
-                    scope: this, 
-                    click: function() {
+                    scope: this,
+                    click: function () {
                         this._removeItem(record);
                     }
                 }
             });
-        },this);
+        }, this);
     },
-    
-    _removeItem: function(item) {
+
+    _removeItem: function (item) {
         this.selectedRecords = Ext.Array.remove(this.selectedRecords, item);
         this._updateDisplay();
     },
-    
-    _buildButtons: function() {
+
+    _buildButtons: function () {
         this.down('panel').addDocked({
             xtype: 'toolbar',
             dock: 'bottom',
@@ -124,7 +124,7 @@ Ext.define('CA.technicalservices.ProjectPickerDialog',{
                     cls: 'primary small',
                     scope: this,
                     userAction: 'clicked done in dialog',
-                    handler: function() {
+                    handler: function () {
                         this.fireEvent('projectschosen', this, this.selectedRecords);
                         this.close();
                     }
@@ -140,103 +140,110 @@ Ext.define('CA.technicalservices.ProjectPickerDialog',{
             ]
         });
     },
-    
-    _addRecordToSelectedRecords: function(record) {
-        if ( Ext.isFunction(record.getData ) ) {
+
+    _addRecordToSelectedRecords: function (record) {
+        if (Ext.isFunction(record.getData)) {
             record = record.getData();
         }
-        
+
         // unique by objectID
         var record_hash = {};
-        Ext.Array.each( Ext.Array.push(this.selectedRecords, [record] ), function(item) {
+        Ext.Array.each(Ext.Array.push(this.selectedRecords, [record]), function (item) {
             record_hash[item.ObjectID] = item;
         });
-        
+
         this.selectedRecords = Ext.Object.getValues(record_hash);
         this._updateDisplay();
     },
-    
-    _buildProjectGrid: function() {
+
+    _buildProjectGrid: function () {
         this.selector = this.down('#selector_container').add({
-            xtype:'rallytextfield',
-            itemId:'searchTerms',
+            xtype: 'rallytextfield',
+            itemId: 'searchTerms',
             emptyText: 'Type & Enter to Search Name',
             enableKeyEvents: true,
             flex: 1,
             width: '100%',
             listeners: {
                 scope: this,
-                keyup: function(field,evt){
-                    if ( evt.getKey() === Ext.EventObject.ENTER ) {
+                keyup: function (field, evt) {
+                    if (this.timeout) {
+                        clearTimeout(this.timeout);
+                    }
+
+                    if (evt.getKey() === Ext.EventObject.ENTER) {
                         this._search();
                     }
+                    else {
+                        this.timeout = setTimeout(() => this._search(), 500);
+                    }
                 },
-                afterrender: function(field) {
+                afterrender: function (field) {
                     field.focus();
                 }
             }
         });
-        
+
         var container = this.down('#selector_container').add({
-            xtype:'container', 
-            itemId:'selector_container',
+            xtype: 'container',
+            itemId: 'selector_container',
             height: 180,
             layout: 'fit'
         });
-        
+
         this.grid = container.add({
-            xtype:'rallygrid',
+            xtype: 'rallygrid',
             showRowActionsColumn: false,
             enableEditing: false,
             hideHeaders: true,
             showPagingToolbar: true,
             storeConfig: {
-                model:'Project'
+                model: 'Project'
             },
-            columnCfgs: [{dataIndex:'Name',text:'Click to Add'}],
+            columnCfgs: [{ dataIndex: 'Name', text: 'Click to Add' }],
             listeners: {
                 scope: this,
-                itemclick: function(grid,record) {
+                itemclick: function (grid, record) {
                     this._addRecordToSelectedRecords(record);
                 }
             }
         });
     },
-    
-    _search: function() {
+
+    _search: function () {
         var terms = this._getSearchTerms();
         console.log('searching for ', terms);
-        
+
         var store = this.grid.getStore();
         store.setFilter(null);
         if (terms) {
-            store.setFilter({ property:'Name', operator:'contains', value:terms });
-        } 
+            store.setFilter({ property: 'Name', operator: 'contains', value: terms });
+        }
         store.loadPage(1);
     },
 
-    _getSearchTerms: function() {
+    _getSearchTerms: function () {
         var textBox = this.down('#searchTerms');
         return textBox && textBox.getValue();
     },
-        
-    _buildTree: function() {
-        
-        this.tree = Ext.create('Rally.ui.tree.ProjectTree',{
+
+    _buildTree: function () {
+
+        this.tree = Ext.create('Rally.ui.tree.ProjectTree', {
             workspace: Rally.getApp().getContext().getWorkspaceRef(),
             autoScroll: true,
             listeners: {
                 scope: this,
-                itemselected: function(item) {
+                itemselected: function (item) {
                     this._addRecordToSelectedRecords(item.record);
                 }
             }
         });
-        
+
         this.down('#grid_container').add(this.tree);
     },
-    
-    _getGridColumns: function() {
+
+    _getGridColumns: function () {
         return [
             { dataIndex: 'Name', flex: 1 }
         ];

@@ -69,6 +69,7 @@ Ext.define("TSTimeInState", {
             { property: 'Name', value: 'Defect' },
             { property: 'Name', value: 'Hierarchical Requirement' }
         ]);
+
         this.down('#artifact_box').add({
             xtype: 'tsrecordtypecombobox',
             fieldLabel: 'Type:',
@@ -314,6 +315,16 @@ Ext.define("TSTimeInState", {
                 }
             }
         });
+
+        button_box.add({
+            xtype: 'rallybutton',
+            cls: 'customagile-button help',
+            iconOnly: true,
+            iconCls: 'icon-help',
+            handler: this._onHelpClicked,
+            id: 'timeInStateHelp',
+            margin: '10 0 0 5'
+        });
     },
 
     _addStateSelectors: function (container, field_name) {
@@ -516,15 +527,22 @@ Ext.define("TSTimeInState", {
         this.setLoading('Loading filters and column data');
 
         let context = this.getContext().getDataContext();
-
-        if (this.searchAllProjects()) {
-            context.project = null;
-        }
-
+        var projects = this.down('#project_selector').getValue();
         let ids = _.map(rows, r => r.ObjectID);
         let filters = await this.ancestorFilterPlugin.getAllFiltersForType(this._getModelName(), true).catch((e) => {
             Rally.ui.notify.Notifier.showError({ message: (e.message || e) });
         });
+
+        if (this.searchAllProjects()) {
+            context.project = null;
+        } else if (projects.length > 0) {
+            context.project = null;
+            filters.push(new Rally.data.wsapi.Filter({
+                property: 'Project.ObjectID',
+                operator: 'in',
+                value: Ext.Array.map(projects, function (p) { return p.ObjectID; })
+            }));
+        }
 
         if (this._shouldFilterByTimebox()) {
             let timeboxScope = this.getContext().getTimeboxScope();
@@ -1065,5 +1083,76 @@ Ext.define("TSTimeInState", {
         this.logger.log('onSettingsUpdate', settings);
         // Ext.apply(this, settings);
         this.launch();
+    },
+
+    _onHelpClicked: function () {
+        let helpHtml = `
+        <h3>Type and State Field</h3>
+        <p>This app shows a series of artifacts and the time spent in each "state". Begin by choosing the artifact type from the first dropdown. 
+        Upon choosing a type, the State Field dropdown will populate with possible attributes to use as states.</p>
+        
+        <h3>Start and End State</h3>
+        <p>After choosing a state field, select a beginning and end value from the dropdowns for that particular field. If an item enters and 
+        leaves the same state multiple times, the time in state is the sum of all time in that state.</p>
+
+        <h3>Start and End Date</h3>
+        <p>The next 2 inputs specify the date range for the report. A start date is required. If an end date is not specified, the app defaults 
+        to today. The app will only show items that entered the first selected state within this date range for the very first time. If the user 
+        picks 1 Jan 2020 to 1 Feb 2020 and the item entered the first state in December, then it will not show, even if that item left the state 
+        and entered it again in January.</p>
+
+        <h3>Project Picker</h3>
+        <p>The app allows for the selection individual projects. If this option is chosen, the app will look for history in those projects only. 
+        Otherwise, the app will look in the current project and its children.</p>
+        
+        <h3>Column Picker</h3>
+        <p>The report will always display the artifact ID, Name, Project and time in state data. Additional columns can be added to the report 
+        via the column picker. Any attributes selected via the picker will also appear in the export file.</p>
+
+        <h3>Days/Hours</h3>
+        <p>The toggle switch below the project and column pickers controls how the time in state data is summarized. H will show time in hours, 
+        D will show time in days.</p>
+
+        <h3>Filters</h3>
+        <p>At the top of the app is a series of filters allowing full control over the data displayed in the app. Additional filter help can be 
+        found by clicking on the help button within the filter area.</p>
+
+        <h3>Note on load times</h3>
+        <p>This app utilizes historical lookback data. A typical report in this app retrieves thousands of snapshots in order to calculate time 
+        in state. You may notice long load times or even timeouts when attempting to generate the report. If so, try reducing the date range and/or 
+        the number of projects included in the report (If you're currently within a project containing many child projects, the app will attempt to 
+        retrieve tens of thousands of snapshots, which takes substantial time to do).</p>
+        `;
+
+        this.helpDialog = Ext.create('Rally.ui.dialog.Dialog', {
+            autoShow: true,
+            layout: 'fit',
+            width: '85%',
+            closable: true,
+            autoDestroy: true,
+            buttonAlign: 'center',
+            autoScroll: true,
+            title: 'Using the Time in State App',
+            items: {
+                xtype: 'component',
+                cls: 'helpText',
+                html: helpHtml,
+                padding: 10,
+                style: 'font-size:12px;'
+            },
+            buttons: [
+                {
+                    xtype: "rallybutton",
+                    text: 'Close',
+                    cls: 'secondary rly-small',
+                    listeners: {
+                        click: () => {
+                            this.helpDialog.close();
+                        },
+                        scope: this
+                    }
+                }
+            ]
+        });
     }
 });

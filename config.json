@@ -2,7 +2,7 @@
     "name": "TS Time In State",
     "sdk": "2.1",
     "className": "TSTimeInState",
-    "repository": "https://github.com/CustomAgile/committed-vs-delivered",
+    "repository": "https://github.com/CustomAgile/r-time-in-state",
     "javascript": [
         "node_modules/@customagile/ancestor-pi-multi-level-pi-app-filter/index.js",
         "src/javascript/utils/*.js",

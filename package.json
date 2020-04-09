@@ -1,9 +1,10 @@
 {
   "_comment": "This file is used by grunt",
   "name": "tsabc",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "dependencies": {
-    "@customagile/ancestor-pi-multi-level-pi-app-filter": "git+https://github.com/CustomAgile/utils-ancestor-pi-app-filter.git"
+    "@customagile/ancestor-pi-multi-level-pi-app-filter": "git+https://github.com/CustomAgile/utils-ancestor-pi-app-filter.git",
+    "@customagile/utils-field-renderer": "git+https://github.com/CustomAgile/utils-field-renderer.git"
   },
   "devDependencies": {
     "grunt": "~0.4.1",

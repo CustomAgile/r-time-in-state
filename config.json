@@ -5,6 +5,7 @@
     "repository": "https://github.com/CustomAgile/r-time-in-state",
     "javascript": [
         "node_modules/@customagile/ancestor-pi-multi-level-pi-app-filter/index.js",
+        "node_modules/@customagile/utils-field-renderer/field-renderer.js",
         "src/javascript/utils/*.js",
         "src/javascript/*.js"
     ],

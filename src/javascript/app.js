@@ -1,68 +1,161 @@
 Ext.define("TSTimeInState", {
     extend: 'Rally.app.App',
     componentCls: 'app',
-    logger: new Rally.technicalservices.Logger(),
-    defaults: { margin: 10 },
-
-    layout: 'border',
-
-    items: [
-        {
-            xtype: 'container',
-            layout: 'vbox',
-            region: 'north',
-            items: [
-                {
-                    id: Utils.AncestorPiAppFilter.RENDER_AREA_ID,
-                    xtype: 'container',
-                    width: '100%',
-                    layout: {
-                        type: 'hbox',
-                        align: 'middle',
-                        defaultMargins: '0 10 10 0',
-                    }
-                }, {
-                    id: Utils.AncestorPiAppFilter.PANEL_RENDER_AREA_ID,
-                    xtype: 'container',
-                    width: '100%',
-                    layout: {
-                        type: 'hbox',
-                        align: 'middle',
-                        defaultMargins: '0 10 10 0',
-                    }
-                },
-                {
-                    xtype: 'container',
-                    itemId: 'selector_box',
-                    layout: 'hbox',
-                    defaults: { margin: 10, layout: 'vbox' },
-                    items: [
-                        { xtype: 'container', itemId: 'artifact_box' },
-                        { xtype: 'container', itemId: 'state_selector_box' },
-                        { xtype: 'container', itemId: 'date_selector_box' },
-                        { xtype: 'container', itemId: 'metric_box', layout: 'column', align: 'center', width: 110 },
-                        { xtype: 'container', itemId: 'project_box' },
-                        { xtype: 'container', flex: 1 },
-                        { xtype: 'container', itemId: 'button_box', layout: 'hbox' }
-                    ]
-                }
-            ]
-        },
-        { xtype: 'container', itemId: 'display_box', region: 'center', layout: 'fit' }
-    ],
-
     integrationHeaders: {
         name: "TSTimeInState"
     },
+    defaults: { margin: 5 },
+    layout: {
+        type: 'vbox',
+        align: 'stretch'
+    },
+    items: [
+        {
+            xtype: 'container',
+            minHeight: 20,
+            width: '100%',
+            items: [{
+                xtype: 'tabpanel',
+                itemId: 'filterAndSettingsPanel',
+                // stateful: true,
+                // stateId: 'time-in-state-filter-and-settings-panel',
+                header: false,
+                collapsible: true,
+                animCollapse: false,
+                cls: 'blue-tabs',
+                activeTab: 0,
+                plain: true,
+                tabBar: {
+                    margin: '0 0 0 100'
+                },
+                autoRender: true,
+                minTabWidth: 140,
+                width: '100%',
+                items: [
+                    {
+                        title: 'FILTERS',
+                        html: '',
+                        itemId: 'filtersTab',
+                        padding: 5,
+                        width: '100%',
+                        items: [
+                            {
+                                id: Utils.AncestorPiAppFilter.RENDER_AREA_ID,
+                                xtype: 'container',
+                                layout: {
+                                    type: 'hbox',
+                                    align: 'middle',
+                                    defaultMargins: '0 10 10 0',
+                                },
+                                width: '100%'
+                            }, {
+                                id: Utils.AncestorPiAppFilter.PANEL_RENDER_AREA_ID,
+                                xtype: 'container',
+                                layout: {
+                                    type: 'hbox',
+                                    align: 'middle',
+                                    defaultMargins: '0 10 10 0',
+                                },
+                                width: '100%'
+                            },
+                        ]
+                    },
+                    {
+                        title: 'Report Settings',
+                        html: '',
+                        itemId: 'settingsTab',
+                        padding: 5,
+                        defaultMargins: '5 10 0 0',
+                        items: [{
+                            xtype: 'container',
+                            itemId: 'selector_box',
+                            layout: 'hbox',
+                            defaults: { margin: 10, layout: 'vbox' }
+                        }]
+                    },
+                    {
+                        title: 'Projects',
+                        itemId: 'projectsTab',
+                        padding: 10,
+                    }
+                ]
+            }]
+        },
+        {
+            xtype: 'container',
+            itemId: 'button_bar',
+            layout: {
+                type: 'hbox',
+                align: 'stretch',
+                pack: 'end',
+                defaultMargins: 2,
+            },
+            height: 28
+        },
+        {
+            xtype: 'container',
+            itemId: 'display_box',
+            layout: {
+                type: 'vbox',
+                align: 'stretch',
+                defaultMargins: 5,
+            },
+            flex: 1
+        }
+    ],
 
     launch: async function () {
         Rally.data.wsapi.Proxy.superclass.timeout = 180000;
         Rally.data.wsapi.batch.Proxy.superclass.timeout = 180000;
+        this.settingsWidth = 220;
+        this.labelWidth = 60;
         this.setLoading();
-
+        this.addProjectPicker();
         this._setDisplayFormats();
+        this.addCollapseBtn();
 
-        this.logger.log('formats:', this.dateFormat, this.timeFormat);
+        if (this.getWidth() < 1024) {
+            this.down('#selector_box').add([
+                {
+                    xtype: 'container',
+                    layout: 'vbox',
+                    items: [
+                        { xtype: 'container', itemId: 'artifact_box' },
+                        { xtype: 'container', itemId: 'state_selector_box' }
+                    ]
+                },
+                {
+                    xtype: 'container',
+                    layout: 'vbox',
+                    items: [
+                        { xtype: 'container', itemId: 'date_selector_box' },
+                        { xtype: 'container', itemId: 'metric_box', layout: 'column', align: 'center', width: 110 }
+                    ]
+                }
+            ]);
+        }
+        else {
+            this.down('#selector_box').add([
+                { xtype: 'container', itemId: 'artifact_box' },
+                { xtype: 'container', itemId: 'state_selector_box' },
+                { xtype: 'container', itemId: 'date_selector_box' },
+                { xtype: 'container', itemId: 'metric_box', layout: 'column', align: 'center', width: 110 }
+            ]);
+        }
+
+        this.down('#display_box').on('resize', this.onGridAreaResize, this);
+
+        // Hide floating components because of course they are still visible when settings menu is shown
+        this.on('beforehide', () => {
+            this.collapseBtn.hide();
+        });
+        this.on('beforeshow', () => {
+            this.collapseBtn.show();
+
+            if (this.down('#filterAndSettingsPanel').getActiveTab().title.indexOf('FILTERS') === -1) {
+                setTimeout(() => this.ancestorFilterPlugin.hideHelpButton(), 1000);
+            }
+        });
 
         var filters = Rally.data.wsapi.Filter.or([
             { property: 'TypePath', operator: 'contains', value: 'PortfolioItem/' },
@@ -72,14 +165,15 @@ Ext.define("TSTimeInState", {
 
         this.down('#artifact_box').add({
             xtype: 'tsrecordtypecombobox',
-            fieldLabel: 'Type:',
+            fieldLabel: 'Type',
             typeFilter: filters,
-
-            labelWidth: 60,
+            margin: '0 5 10 0',
+            width: this.settingsWidth,
+            labelWidth: this.labelWidth,
             listeners: {
                 scope: this,
                 change: function (cb) {
-                    if (this.process && this.process.getState() == "Pending") {
+                    if (this.process && this.process.getState().toLowerCase() === 'pending') {
                         this.process.cancel();
                     }
 
@@ -101,11 +195,63 @@ Ext.define("TSTimeInState", {
                 }
             }
         });
-
-        this.projects = await this._getProjectList();
         this._addMultiLevelFilters();
-
         this.setLoading(false);
+    },
+
+    onGridAreaResize() {
+        let gridArea = this.down('#display_box');
+        let grid = this.down('rallygrid');
+
+        if (gridArea && grid) {
+            grid.setHeight(gridArea.getHeight());
+        }
+    },
+
+    addProjectPicker() {
+        let tab = this.down('#filterAndSettingsPanel').child('#projectsTab');
+        this.down('#projectsTab').add({
+            xtype: 'customagileprojectpicker',
+            cmp: this,
+            appName: 'time-in-state',
+            tab,
+            listeners: {
+                scope: this,
+                projectschanged: () => {
+                    this.refreshProjects = true;
+                    this._clearGrid();
+                },
+                applyprojects: () => {
+                    this._updateData();
+                }
+            }
+        });
+
+        this.projectPicker = this.down('customagileprojectpicker');
+    },
+
+    addCollapseBtn() {
+        this.collapseBtn = Ext.widget('rallybutton', {
+            text: this.down('#filterAndSettingsPanel').getCollapsed() ? 'Expand Filters and Settings' : 'Collapse',
+            floating: true,
+            shadow: false,
+            height: 21,
+            handler: (btn) => {
+                this.down('#filterAndSettingsPanel').toggleCollapse();
+                if (btn.getText() === 'Collapse') {
+                    btn.setText('Expand Filters and Settings');
+                    this.ancestorFilterPlugin.hideHelpButton();
+                }
+                else {
+                    btn.setText('Collapse');
+                    if (this.down('#filterAndSettingsPanel').getActiveTab().title.indexOf('FILTERS') > -1) {
+                        this.ancestorFilterPlugin.showHelpButton();
+                    }
+                }
+            }
+        });
+
+        this.collapseBtn.showBy(this.down('#filterAndSettingsPanel'), 'tl-tl', [0, 3]);
     },
 
     _addMultiLevelFilters: function () {
@@ -113,39 +259,77 @@ Ext.define("TSTimeInState", {
             ptype: 'UtilsAncestorPiAppFilter',
             pluginId: 'ancestorFilterPlugin',
             settingsConfig: {},
-            whiteListFields: [
-                'Tags',
-                'Milestones',
-                'c_EnterpriseApprovalEA',
-                'c_EAEpic',
-                'DisplayColor'
-            ],
+            overrideGlobalWhitelist: true,
+            whiteListFields: ['Tags', 'Milestones', 'c_EnterpriseApprovalEA', 'c_EAEpic', 'DisplayColor'],
             filtersHidden: false,
+            displayMultiLevelFilter: true,
             visibleTab: this.model_name,
             listeners: {
                 scope: this,
                 ready(plugin) {
                     plugin.addListener({
                         scope: this,
-                        select: this._clearGrid,
-                        change: this._clearGrid
+                        select: this.filtersChange,
+                        change: this.filtersChange
                     });
-
-                    // this._filtersChange();
+                    this.down('#filterAndSettingsPanel').on('beforetabchange', (tabs, newTab) => {
+                        if (newTab.title.indexOf('FILTERS') > -1) {
+                            this.ancestorFilterPlugin.showHelpButton();
+                        }
+                        else {
+                            this.ancestorFilterPlugin.hideHelpButton();
+                        }
+                    });
+                    this.down('#filterAndSettingsPanel').setActiveTab(1);
+                    setTimeout(() => {
+                        this.updateFilterTabText();
+                        this.projectPicker.updateProjectTabText;
+                    }, 600);
                 },
                 failure(msg) {
                     this.setLoading(false);
-                    Rally.ui.notify.Notifier.showError({ message: msg });
+                    this.showError(msg, 'Failed to load multi-level filters');
                 }
             }
         });
         this.addPlugin(this.ancestorFilterPlugin);
     },
 
-    async _getProjectList() {
+    filtersChange() {
+        this._clearGrid();
+        this.updateFilterTabText();
+    },
+
+    updateFilterTabText(filters) {
+        if (!filters) {
+            filters = this.ancestorFilterPlugin.getMultiLevelFilters();
+        }
+        let totalFilters = 0;
+        _.each(filters, function (filter) {
+            totalFilters += filter.length;
+        });
+
+        let titleText = totalFilters ? `FILTERS (${totalFilters})` : 'FILTERS';
+        let tab = this.down('#filterAndSettingsPanel').child('#filtersTab');
+
+        if (tab) { tab.setTitle(titleText); }
+    },
+
+    async loadProjects() {
+        this.setLoading('Loading Projects...');
+
+        if (this.useSpecificProjects()) {
+            await this._getSpecificProjectList();
+        }
+        else {
+            await this._getScopedProjectList();
+        }
+    },
+
+    async _getScopedProjectList() {
         let projectStore = Ext.create('Rally.data.wsapi.Store', {
             model: 'Project',
-            fetch: ['Name', 'ObjectID', 'Children'],
+            fetch: ['Name', 'ObjectID', 'Children', 'Parent'],
             filters: [{ property: 'ObjectID', value: this.getContext().getProject().ObjectID }],
             limit: 1,
             pageSize: 1,
@@ -153,22 +337,54 @@ Ext.define("TSTimeInState", {
         });
 
         let results = await projectStore.load();
-        if (results) {
-            let projects = await this._getAllChildProjects(results);
-            let projectIds = _.map(projects, (p) => {
-                return p.get('ObjectID');
+        let parents = [];
+        let children = [];
+        if (results && results.length) {
+            if (this.getContext().getProjectScopeDown()) {
+                children = await this._getAllChildProjects(results);
+            }
+
+            if (this.getContext().getProjectScopeUp()) {
+                parents = await this._getAllParentProjects(results[0]);
+            }
+
+            if (children.length) {
+                results = children.concat(parents);
+            }
+            else if (parents.length) {
+                results = parents;
+            }
+
+            this.projects = results;
+
+            this.projectRefs = _.map(results, (p) => {
+                return p.get('_ref');
             });
-            return projectIds;
         }
         else {
-            return [];
+            this.projects = [];
+            this.projectRefs = [];
         }
+    },
+
+    async _getSpecificProjectList() {
+        let projects = this.projectPicker.getValue();
+
+        if (this.projectPicker.includeChildProjects()) {
+            projects = await this._getAllChildProjects(projects);
+        }
+
+        this.projects = projects;
+
+        this.projectRefs = _.map(projects, (p) => {
+            return p.get('_ref');
+        });
     },
 
     async _getAllChildProjects(allRoots = [], fetch = ['Name', 'Children', 'ObjectID']) {
         if (!allRoots.length) { return []; }
 
-        const promises = allRoots.map(r => this._wrap(r.getCollection('Children', { fetch, limit: Infinity }).load()));
+        const promises = allRoots.map(r => this.wrap(r.getCollection('Children', { fetch, limit: Infinity, filters: [{ property: 'State', value: 'Open' }] }).load()));
         const children = _.flatten(await Promise.all(promises));
         const decendents = await this._getAllChildProjects(children, fetch);
         const removeDupes = {};
@@ -180,7 +396,28 @@ Ext.define("TSTimeInState", {
         return finalResponse;
     },
 
-    async _wrap(deferred) {
+    async _getAllParentProjects(p) {
+        let projectStore = Ext.create('Rally.data.wsapi.Store', {
+            model: 'Project',
+            fetch: ['Name', 'ObjectID', 'Parent'],
+            filters: [{ property: 'ObjectID', value: p.get('Parent').ObjectID }],
+            limit: 1,
+            pageSize: 1,
+            autoLoad: false
+        });
+
+        let results = await projectStore.load();
+        if (results && results.length) {
+            if (results[0].get('Parent')) {
+                let parents = await this._getAllParentProjects(results[0]);
+                return [p].concat(parents);
+            }
+            return [p, results[0]];
+        }
+        return [p];
+    },
+
+    async wrap(deferred) {
         if (!deferred || !_.isFunction(deferred.then)) {
             return Promise.reject(new Error('Wrap cannot process this type of data into a ECMA promise'));
         }
@@ -199,7 +436,6 @@ Ext.define("TSTimeInState", {
 
     _setDisplayFormats: function () {
         var user_context = this.getContext().getUser();
-        this.logger.log("User Context", user_context);
 
         this.dateFormat = user_context.UserProfile.DateFormat;
         this.timeFormat = user_context.UserProfile.DateTimeFormat;
@@ -227,12 +463,12 @@ Ext.define("TSTimeInState", {
         var field_chooser_box = this.down('#artifact_box');
         var state_chooser_box = this.down('#state_selector_box');
         var date_chooser_box = this.down('#date_selector_box');
-        var button_box = this.down('#button_box');
+        var button_bar = this.down('#button_bar');
         var metric_box = this.down('#metric_box');
-        var project_box = this.down('#project_box');
+        var context = this.getContext();
 
-        this._clearBoxes([state_chooser_box, metric_box, project_box,
-            date_chooser_box, button_box]);
+        this._clearBoxes([state_chooser_box, metric_box,
+            date_chooser_box, button_bar]);
 
         if (this.down('rallyfieldcombobox')) {
             this.down('rallyfieldcombobox').destroy();
@@ -242,10 +478,12 @@ Ext.define("TSTimeInState", {
             xtype: 'rallyfieldcombobox',
             model: this.model,
             _isNotHidden: this._isNotHidden,
-            fieldLabel: 'State Field:',
-            labelWidth: 60,
+            fieldLabel: 'State Field',
+            width: this.settingsWidth,
+            margin: '0 5 10 0',
+            labelWidth: this.labelWidth,
             stateful: true,
-            stateId: 'techservices-timeinstate-fieldcombo',
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-fieldcombo'),
             stateEvents: ['change'],
             listeners: {
                 scope: this,
@@ -258,55 +496,126 @@ Ext.define("TSTimeInState", {
         this._addDateSelectors(date_chooser_box);
 
         metric_box.add({
-            xtype: 'tsmultiprojectpicker',
-            itemId: 'project_selector',
-            workspace: this.getContext().getWorkspaceRef(),
-            showProjectNames: false,
-            margin: 0,
+            xtype: 'rallycombobox',
+            itemId: 'columnDetailCombo',
+            fieldLabel: 'Columns',
+            width: this.settingsWidth,
+            labelSeparator: '',
+            labelWidth: this.labelWidth,
             stateful: true,
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-column-detail-combo'),
             stateEvents: ['change'],
-            stateId: 'techservices-timeinstate-projectpickerbutton'
+            displayField: 'name',
+            valueField: 'value',
+            editable: false,
+            allowBlank: false,
+            store: Ext.create('Ext.data.Store', {
+                fields: ['name', 'value'],
+                data: [
+                    { name: 'Time In State', value: 'timeOnly' },
+                    { name: 'Time In State And Enter/Exit Dates', value: 'timeAndDates' }
+                ]
+            }),
+            listeners: {
+                scope: this,
+                change: function () {
+                    this._clearGrid();
+                }
+            }
         });
 
         metric_box.add({
-            xtype: 'tscolumnpickerbutton',
-            cls: 'secondary big',
-            columns: this._getPickableColumns(),
-            margin: 0,
-            toolTipText: 'Add Columns',
+            xtype: 'rallycombobox',
+            itemId: 'metricCombo',
+            fieldLabel: 'Format',
+            width: this.settingsWidth,
+            labelSeparator: '',
+            labelWidth: this.labelWidth,
             stateful: true,
-            stateId: 'techservices-timeinstate-fieldpickerbutton',
-            stateEvents: ['columnsChosen']
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-metric-combo'),
+            stateEvents: ['change'],
+            displayField: 'name',
+            valueField: 'value',
+            editable: false,
+            allowBlank: false,
+            store: Ext.create('Ext.data.Store', {
+                fields: ['name', 'value'],
+                data: [
+                    { name: 'Days', value: 'Days' },
+                    { name: 'Weeks', value: 'Weeks' },
+                ]
+            }),
+            listeners: {
+                scope: this,
+                change: function (cb, newVal) {
+                    if (newVal === 'Days' && this.down('#excludeWeekendsCheckbox')) {
+                        this.down('#excludeWeekendsCheckbox').show();
+                    }
+                    else if (newVal === 'Weeks' && this.down('#excludeWeekendsCheckbox')) {
+                        this.down('#excludeWeekendsCheckbox').hide();
+                    }
+                    this._clearGrid();
+                }
+            }
         });
 
         metric_box.add({
-            xtype: 'tstogglebutton',
-            toggleState: 'Hours',
-            itemId: 'metric_selector',
+            xtype: 'rallycheckboxfield',
+            fieldLabel: 'Exclude Weekends',
+            labelSeparator: '',
+            itemId: 'excludeWeekendsCheckbox',
+            width: this.settingsWidth,
+            labelWidth: this.settingsWidth - 20,
             margin: '3 0 0 0',
             stateful: true,
-            stateId: 'techservices-timeinstate-metriccombo',
+            // hidden: this.down('#metricCombo').getValue() !== 'Days',
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-exclude-weekends-checkbox'),
             stateEvents: ['change']
         });
 
-        button_box.add({
+        button_bar.add({
+            xtype: 'tsfieldpickerbutton',
+            context,
+            modelNames: [this.model.typePath],
+            cls: 'secondary rly-small',
+            margin: '0 30 0 0',
+            height: 26,
+            toolTipConfig: {
+                html: 'Additional Columns',
+                anchor: 'top'
+            },
+            alwaysSelectedValues: [],
+            stateful: true,
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-fieldpickerbutton'),
+            listeners: {
+                fieldsupdated: function () {
+                    this._clearGrid();
+                },
+                scope: this
+            }
+        });
+
+        button_bar.add({
             xtype: 'rallybutton',
+            itemId: 'updateBtn',
             text: 'Update',
+            cls: 'primary rly-small',
+            height: 26,
             padding: 3,
-            margin: '10 0 0 5',
+            margin: '0 30 0 0',
             listeners: {
                 scope: this,
                 click: this._updateData
             }
         });
 
-        button_box.add({
+        button_bar.add({
             xtype: 'rallybutton',
             itemId: 'export_button',
-            cls: 'secondary small',
+            cls: 'secondary rly-small',
             text: '<span class="icon-export"> </span>',
             height: 26,
-            margin: '10 0 0 5',
+            margin: '0 30 0 0',
             disabled: true,
             listeners: {
                 scope: this,
@@ -316,32 +625,39 @@ Ext.define("TSTimeInState", {
             }
         });
 
-        button_box.add({
+        button_bar.add({
             xtype: 'rallybutton',
             cls: 'customagile-button help',
             iconOnly: true,
             iconCls: 'icon-help',
             handler: this._onHelpClicked,
             id: 'timeInStateHelp',
-            margin: '10 0 0 5'
+            margin: '0 0 0 5'
         });
+
+        setTimeout(() => {
+            if (this.down('#metricCombo') && this.down('#metricCombo').getValue() !== 'Days') {
+                this.down('#excludeWeekendsCheckbox').hide();
+            }
+        }, 400);
     },
 
     _addStateSelectors: function (container, field_name) {
         container.removeAll();
         this.state_field_name = field_name;
-        var label_width = 60;
 
         container.add({
             xtype: 'rallyfieldvaluecombobox',
             model: this.model,
             itemId: 'start_state_selector',
+            margin: '0 5 10 0',
             field: field_name,
-            fieldLabel: 'Start State:',
-            labelWidth: label_width,
+            fieldLabel: 'Start State',
+            width: this.settingsWidth,
+            labelWidth: this.labelWidth,
             stateful: true,
             stateEvents: ['change'],
-            stateId: 'techservices-timeinstate-startstatecombo'
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-startstatecombo')
         });
 
         container.add({
@@ -349,36 +665,43 @@ Ext.define("TSTimeInState", {
             model: this.model,
             itemId: 'end_state_selector',
             field: field_name,
-            fieldLabel: 'End State:',
-            labelWidth: label_width,
+            fieldLabel: 'End State',
+            width: this.settingsWidth,
+            labelWidth: this.labelWidth,
             stateful: true,
             stateEvents: ['change'],
-            stateId: 'techservices-timeinstate-endstatecombo'
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-endstatecombo')
         });
     },
 
     _addDateSelectors: function (container) {
         container.removeAll();
-        var label_width = 60;
 
         container.add({
             xtype: 'rallydatefield',
             itemId: 'start_date_selector',
-            fieldLabel: 'Start Date:',
-            labelWidth: label_width,
+            margin: '0 5 10 0',
+            fieldLabel: 'Start Date',
+            allowBlank: false,
+            width: this.settingsWidth,
+            labelWidth: this.labelWidth,
+            labelSeparator: '',
             stateful: true,
             stateEvents: ['change'],
-            stateId: 'techservices-timeinstate-startdatecombo'
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-startdatecombo')
         });
 
         container.add({
             xtype: 'rallydatefield',
             itemId: 'end_date_selector',
-            fieldLabel: 'End Date:',
-            labelWidth: label_width,
+            fieldLabel: 'End Date',
+            width: this.settingsWidth,
+            labelWidth: this.labelWidth,
+            labelSeparator: '',
+            margin: '0 5 10 0',
             stateful: true,
             stateEvents: ['change'],
-            stateId: 'techservices-timeinstate-enddatecombo'
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-enddatecombo')
         });
     },
 
@@ -414,9 +737,12 @@ Ext.define("TSTimeInState", {
     },
 
     _clearGrid: function () {
-        this.down('#export_button').setDisabled(true);
         var container = this.down('#display_box');
-        container.removeAll();
+        let exportBtn = this.down('#export_button');
+        if (container && exportBtn) {
+            exportBtn.setDisabled(true);
+            container.removeAll();
+        }
     },
 
     _updateData: async function () {
@@ -433,37 +759,33 @@ Ext.define("TSTimeInState", {
         this.endDate = this.down('#end_date_selector').getValue();
 
         if (!this.startDate) {
-            Ext.Msg.alert('', 'Start date is required');
+            this.showError('Start date is required');
             return;
         }
 
         if (Ext.isEmpty(this.startState) || Ext.isEmpty(this.endState)) {
+            this.showError('Start and End States are required');
             return;
         }
 
-        Deft.Chain.pipeline([
-            function () { return this._setValidStates(this._getModelName(), field_name) },
-            function (states) { return this._getChangeSnapshots(field_name, this.model); },
-            // this._addProjectsToSnapshots,
-            this._organizeSnapshotsByOid,
-            function (snaps_by_oid) { return this._setTimeInStatesForAll(snaps_by_oid, field_name); }
-        ], this).then({
-            scope: this,
-            success: async function (rows_by_oid) {
-                var rows = Ext.Object.getValues(rows_by_oid);
-                rows = this._removeItemsOutsideTimeboxes(rows);
-                rows = await this._syncWithCurrentData(rows);
+        try {
+            this._setValidStates();
+            let snapshots = await this._getChangeSnapshots(field_name);
+            let snaps_by_oid = this._organizeSnapshotsByOid(snapshots);
+            let rows_by_oid = this._setTimeInStatesForAll(snaps_by_oid, field_name);
+            let rows = Ext.Object.getValues(rows_by_oid);
+            rows = this._removeItemsOutsideTimeboxes(rows);
+            rows = await this._syncWithCurrentData(rows);
 
-                if (rows) {
-                    this._makeGrid(rows);
-                }
-            },
-            failure: function (msg) {
-                this.setLoading(false);
-                Ext.Msg.alert('Problem loading data', msg);
+            if (rows) {
+                this._makeGrid(rows);
             }
-
-        });
+            this.setLoading(false);
+        }
+        catch (e) {
+            this.setLoading(false);
+            this.showError(e);
+        }
     },
 
     _syncWithCurrentData: async function (rows) {
@@ -472,16 +794,12 @@ Ext.define("TSTimeInState", {
         }
 
         let fetch = ['ObjectID', 'FormattedID', 'Name', 'Project', 'Value'];
-        let columns = this._getPickedColumns();
-        for (let c of columns) {
-            fetch.push(c.dataIndex);
-        }
+        fetch = fetch.concat(this.getAdditionalFieldsFromButton());
 
         let records = await this._getCurrentDataWithFilters(rows, fetch);
 
         if (!records) {
-            Rally.ui.notify.Notifier.showError({ message: 'Failed while loading records. Result set might be too large.' });
-            return null;
+            throw new Error('Failed while loading records. Result set might be too large.');
         }
 
         rows = _.filter(rows, (r) => {
@@ -498,10 +816,8 @@ Ext.define("TSTimeInState", {
                     return true;
                 }
             }
-
             return false;
         });
-
         return rows;
     },
 
@@ -527,20 +843,17 @@ Ext.define("TSTimeInState", {
         this.setLoading('Loading filters and column data');
 
         let context = this.getContext().getDataContext();
-        var projects = this.down('#project_selector').getValue();
         let ids = _.map(rows, r => r.ObjectID);
-        let filters = await this.ancestorFilterPlugin.getAllFiltersForType(this._getModelName(), true).catch((e) => {
-            Rally.ui.notify.Notifier.showError({ message: (e.message || e) });
-        });
+        let filters = await this.ancestorFilterPlugin.getAllFiltersForType(this._getModelName(), true);
 
         if (this.searchAllProjects()) {
             context.project = null;
-        } else if (projects.length > 0) {
+        } else if (this.useSpecificProjects() && this.projectRefs && this.projectRefs.length > 0) {
             context.project = null;
             filters.push(new Rally.data.wsapi.Filter({
-                property: 'Project.ObjectID',
+                property: 'Project',
                 operator: 'in',
-                value: Ext.Array.map(projects, function (p) { return p.ObjectID; })
+                value: this.projectRefs
             }));
         }
 
@@ -581,40 +894,67 @@ Ext.define("TSTimeInState", {
             return rows;
         }
 
-        var filtered_rows = this._getRowsAfter(rows, this.startDate);
-        filtered_rows = this._getRowsBefore(filtered_rows, this.endDate);
+        var states = this._getShowStates(this.allowedStates, this.startState, this.endState);
+        var filtered_rows = this._getRowsAfter(rows, this.startDate, states);
+        filtered_rows = this._getRowsBefore(filtered_rows, this.endDate, states);
         return filtered_rows;
     },
 
-    _getRowsAfter: function (rows, start_date) {
-        var enter_field = 'firstEntry_' + this.startState;
-
+    _getRowsAfter: function (rows, start_date, states) {
         if (Ext.isEmpty(start_date)) {
             return rows;
         }
 
+        // let enter_field = 'firstEntry_' + this.startState;
+        let start = Rally.util.DateTime.toIsoString(start_date);
+
         return Ext.Array.filter(rows, function (row) {
-            var enter = row[enter_field];
-            if (Ext.isEmpty(enter)) {
-                return false;
+            for (let state of states) {
+                let enter_field = 'firstEntry_' + state;
+                if (row[enter_field] && row[enter_field] >= start) {
+                    return true;
+                }
             }
-            return (Rally.util.DateTime.toIsoString(start_date) <= enter);
+            return false;
+            // var enter = row[enter_field];
+            // if (Ext.isEmpty(enter)) {
+            //     return false;
+            // }
+            // return (Rally.util.DateTime.toIsoString(start_date) <= enter);
         });
     },
 
-    _getRowsBefore: function (rows, end_date) {
-        var enter_field = 'firstEntry_' + this.startState;
+    _getRowsBefore: function (rows, end_date, states) {
         if (Ext.isEmpty(end_date)) {
             return rows;
         }
 
+        // let enter_field = 'firstEntry_' + this.startState;
+        let end = Rally.util.DateTime.toIsoString(end_date);
+
         return Ext.Array.filter(rows, function (row) {
-            var enter = row[enter_field];
-            if (Ext.isEmpty(enter)) {
-                return false;
+            for (let state of states) {
+                let enter_field = 'firstEntry_' + state;
+                if (row[enter_field] && row[enter_field] <= end) {
+                    return true;
+                }
             }
-            return (Rally.util.DateTime.toIsoString(end_date) >= enter);
+            return false;
+            // var enter = row[enter_field];
+            // if (Ext.isEmpty(enter)) {
+            //     return false;
+            // }
+            // return (Rally.util.DateTime.toIsoString(start_date) <= enter);
         });
+        // var enter_field = 'firstEntry_' + this.startState;
+
+        // return Ext.Array.filter(rows, function (row) {
+        //     var enter = row[enter_field];
+        //     if (Ext.isEmpty(enter)) {
+        //         return false;
+        //     }
+        //     return (Rally.util.DateTime.toIsoString(end_date) >= enter);
+        // });
     },
 
     _setTimeInStatesForAll: function (snaps_by_oid, field_name) {
@@ -627,15 +967,12 @@ Ext.define("TSTimeInState", {
     },
 
     _calculateTimeInState: function (snapshots, field_name) {
-        var me = this;
         var entries = {};  // date of entry into state, used for calc
         var last_index = snapshots.length - 1;
-
+        var excludeWeekends = this.down('#excludeWeekendsCheckbox').getValue();
+        var format = this.down('#metricCombo').getValue();
         var row = Ext.Object.merge({
             snapshots: snapshots,
-            //            FormattedID: snapshots[last_index].get('FormattedID'),
-            //            Name: snapshots[last_index].get('Name'),
-            //            Project: snapshots[last_index].get('Project'),
             __ProjectName: snapshots[last_index].get('__ProjectName'),
             __Project: snapshots[last_index].get('__Project')
         },
@@ -663,11 +1000,19 @@ Ext.define("TSTimeInState", {
             var out_state = snap.get('_PreviousValues.' + field_name);
 
             if (!Ext.isEmpty(entries[out_state])) {
-                var jsStart = Rally.util.DateTime.fromIsoString(entries[out_state]);
-                var jsEnd = Rally.util.DateTime.fromIsoString(snap_time);
-
-                var delta = Rally.util.DateTime.getDifference(jsEnd, jsStart, 'minute');
-
+                let delta = 0;
+                if (excludeWeekends && format === 'Days') {
+                    delta = moment().isoWeekdayCalc(entries[out_state], snap_time, [1, 2, 3, 4, 5]);
+                    if (delta) {
+                        delta--;
+                    }
+                    delta *= 1440;
+                }
+                else {
+                    var jsStart = Rally.util.DateTime.fromIsoString(entries[out_state]);
+                    var jsEnd = Rally.util.DateTime.fromIsoString(snap_time);
+                    delta = Rally.util.DateTime.getDifference(jsEnd, jsStart, 'minute');
+                }
                 row[out_state] = row[out_state] + delta;
                 row['lastExit_' + out_state] = snap_time;
             }
@@ -680,9 +1025,7 @@ Ext.define("TSTimeInState", {
         return this.model_name;
     },
 
-    _setValidStates: function (model_name, field_name) {
-        this.logger.log('_setValidStates', model_name);
-
+    _setValidStates: function () {
         var store = this.down('rallyfieldvaluecombobox').getStore();
         var count = store.getTotalCount();
 
@@ -694,7 +1037,6 @@ Ext.define("TSTimeInState", {
                 values.push(value.get('name'));
             }
         }
-        this.logger.log('allowedStates', values);
         this.allowedStates = values;
 
         return values;
@@ -717,33 +1059,22 @@ Ext.define("TSTimeInState", {
         return snapshots_by_oid;
     },
 
-    _getChangeSnapshots: function (field_name, model) {
+    _getChangeSnapshots: async function (field_name) {
         var filters = Ext.create('Rally.data.lookback.QueryFilter', {
             property: '_TypeHierarchy',
             value: this._getModelName()
         });
 
-        var projects = this.down('#project_selector').getValue();
 
-        if (this.searchAllProjects()) {
-
-        } else if (projects.length > 0) {
-            var project_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-                property: 'Project',
-                operator: 'in',
-                value: Ext.Array.map(projects, function (p) { return p.ObjectID; })
-            });
-
-            filters = filters.and(project_filter);
-        } else {
-            var project_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-                property: 'Project',
-                operator: 'in',
-                value: this.projects
-            });
-
-            filters = filters.and(project_filter);
+        if (!this.searchAllProjects() && (!this.projects || this.refreshProjects)) {
+            await this.loadProjects();
+            this.refreshProjects = false;
         }
+        filters = filters.and(Ext.create('Rally.data.lookback.QueryFilter', {
+            property: 'Project',
+            operator: 'in',
+            value: _.map(this.projects, p => p.get('ObjectID'))
+        }));
 
         let endFilter = Ext.create('Rally.data.lookback.QueryFilter', {
             property: '_ValidTo',
@@ -758,17 +1089,7 @@ Ext.define("TSTimeInState", {
         });
 
         endFilter = endFilter.and(change_filters);
-
-        // var current_filter = Ext.create('Rally.data.lookback.QueryFilter', {
-        //     property: '__At',
-        //     value: 'current'
-        // });
-
-        // let dateRangeFilter = endFilter.or(current_filter);
-
         filters = filters.and(endFilter);
-
-        console.log('filters:', filters.toObject());
 
         var fetch_base = ['ObjectID', 'FormattedID', 'Name',
             'Project', '_TypeHierarchy', '_PreviousValues',
@@ -782,40 +1103,13 @@ Ext.define("TSTimeInState", {
             hydrate,
             limit: Infinity,
             enablePostGet: true,
-            compress: true
-        };
-
-        return this._loadSnapshots(config);
-    },
-
-    _loadSnapshots: function (config) {
-        console.log('loading snapshots');
-        var deferred = Ext.create('Deft.Deferred');
-        var me = this;
-        var default_config = {
+            compress: true,
             removeUnauthorizedSnapshots: true
         };
 
-        this.setLoading('Loading history...');
-        this.logger.log("Starting load:", config);
+        this.setLoading('Loading Historical Snapshots...');
 
-        Ext.create('Rally.data.lookback.SnapshotStore', Ext.Object.merge(default_config, config)).load({
-            callback: function (records, operation, successful) {
-                me.setLoading(false);
-                if (successful) {
-                    deferred.resolve(records);
-                } else {
-                    me.logger.log("Failed: ", operation);
-                    if (operation.error && operation.error.errors) {
-                        deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
-                    }
-                    else {
-                        deferred.reject('Unkown error while fetching historical snapshots. Filtered result set might be too large.');
-                    }
-                }
-            }
-        });
-        return deferred.promise;
+        return this.wrap(Ext.create('Rally.data.lookback.SnapshotStore', config).load());
     },
 
     _getModel: function (model_name) {
@@ -833,6 +1127,15 @@ Ext.define("TSTimeInState", {
         return deferred.promise;
     },
 
+    getAdditionalFieldsFromButton: function () {
+        var fieldPicker = this.down('tsfieldpickerbutton');
+        var result = [];
+        if (fieldPicker) {
+            result = fieldPicker.getFields();
+        }
+        return result;
+    },
+
     _loadWsapiRecords: function (config) {
         var deferred = Ext.create('Deft.Deferred');
         var me = this;
@@ -840,13 +1143,11 @@ Ext.define("TSTimeInState", {
             model: 'Defect',
             fetch: ['ObjectID']
         };
-        this.logger.log("Starting load:", config.model);
         Ext.create('Rally.data.wsapi.Store', Ext.Object.merge(default_config, config)).load({
             callback: function (records, operation, successful) {
                 if (successful) {
                     deferred.resolve(records);
                 } else {
-                    me.logger.log("Failed: ", operation);
                     me.setLoading(false);
                     if (operation.error && operation.error.errors) {
                         deferred.reject('Problem loading: ' + operation.error.errors.join('. '));
@@ -871,13 +1172,12 @@ Ext.define("TSTimeInState", {
             xtype: 'rallygrid',
             store: store,
             columnCfgs: this._getColumns(),
-            showRowActionsColumn: false
+            showRowActionsColumn: false,
+            height: container.getHeight()
         });
     },
 
     _getShowStates: function (allowed_states, start_state, end_state) {
-        this.logger.log('_getShowStates', start_state, end_state);
-
         var start_index = Ext.Array.indexOf(allowed_states, start_state);
         var end_index = Ext.Array.indexOf(allowed_states, end_state);
 
@@ -894,15 +1194,6 @@ Ext.define("TSTimeInState", {
             })
         );
     },
-
-    _getPickedColumns: function () {
-        if (Ext.isEmpty(this.down('tscolumnpickerbutton'))) {
-            return [];
-        }
-
-        return this.down('tscolumnpickerbutton').getChosenColumns();
-    },
-
 
     _getPickableColumns: function () {
         var blacklist = ['Attachments', 'Changesets', 'Collaborators', 'Connections', 'Discussion', 'Risks', 'UserStories', 'Children', 'Defects', 'Tasks', 'TestCases', 'RevisionHistory', 'c_SalesforceCase'];
@@ -951,20 +1242,16 @@ Ext.define("TSTimeInState", {
 
     _getColumns: function () {
         var me = this;
-
-        var metric = me.down('#metric_selector').getValue();
-
+        var metric = me.down('#metricCombo').getValue();
+        var showDateColumns = this.down('#columnDetailCombo').getValue() === 'timeAndDates';
         var columns = [
             { dataIndex: 'FormattedID', text: 'id', width: 75 },
             { dataIndex: 'Name', text: 'Name', width: 200 },
             { dataIndex: '__ProjectName', text: 'Project', width: 155 }
         ];
 
-        columns = Ext.Array.push(columns, this._getPickedColumns());
-
+        columns = columns.concat(_.map(this.getAdditionalFieldsFromButton(), c => { return { dataIndex: c, text: c }; }));
         var show_states = this._getShowStates(this.allowedStates, this.startState, this.endState);
-
-        this.logger.log('show states', show_states);
 
         var date_renderer = function (value, meta, record) {
             if (Ext.isEmpty(value)) { return ""; }
@@ -974,7 +1261,7 @@ Ext.define("TSTimeInState", {
             }
 
             var format = me.timeFormat;
-            if (metric == "Days") {
+            if (metric === 'Days' || metric === 'Weeks') {
                 format = me.dateFormat;
             }
             return Rally.util.DateTime.format(value, format);
@@ -988,31 +1275,28 @@ Ext.define("TSTimeInState", {
                 align: 'right',
                 renderer: function (value, meta, record) {
                     if (Ext.isEmpty(value)) { return ""; }
-
-                    if (metric == "Days") {
-                        return Ext.Number.toFixed(value / 1440, 2); // it's in minutes
-                    }
-
-                    return Ext.Number.toFixed(value / 60, 1);
+                    let minutes = metric === 'Weeks' ? 10080 : 1440;
+                    return Ext.Number.toFixed(value / minutes, 1);
                 }
             });
 
-            columns.push({
-                dataIndex: 'firstEntry_' + state,
-                text: state + ' first entered',
-                align: 'right',
-                renderer: date_renderer
-            });
+            if (showDateColumns) {
+                columns.push({
+                    dataIndex: 'firstEntry_' + state,
+                    text: state + ' first entered',
+                    align: 'right',
+                    renderer: date_renderer
+                });
 
-            columns.push({
-                dataIndex: 'lastExit_' + state,
-                text: state + ' last exited',
-                align: 'right',
-                renderer: date_renderer
-            });
+                columns.push({
+                    dataIndex: 'lastExit_' + state,
+                    text: state + ' last exited',
+                    align: 'right',
+                    renderer: date_renderer
+                });
+            }
         });
 
-        this.logger.log('columns:', columns);
         return columns;
     },
 
@@ -1020,28 +1304,24 @@ Ext.define("TSTimeInState", {
         return this.ancestorFilterPlugin && this.ancestorFilterPlugin.getIgnoreProjectScope();
     },
 
+    useSpecificProjects() {
+        return !!this.projectPicker.getValue().length;
+    },
+
     _export: function () {
         var me = this;
-        this.logger.log('_export');
-
         var grid = this.down('rallygrid');
         var rows = this.rows;
-
-        this.logger.log('number of rows:', rows.length);
 
         if (!grid && !rows) { return; }
 
         var filename = 'time-in-state-report.csv';
-
-        this.logger.log('saving file:', filename);
-
         this.setLoading("Generating CSV");
         Deft.Chain.sequence([
             function () { return Rally.technicalservices.FileUtilities.getCSVFromRows(this, grid, rows); }
         ]).then({
             scope: this,
             success: function (csv) {
-                this.logger.log('got back csv ', csv.length);
                 if (csv && csv.length > 0) {
                     Rally.technicalservices.FileUtilities.saveCSVToFile(csv, filename);
                 } else {
@@ -1050,6 +1330,10 @@ Ext.define("TSTimeInState", {
 
             }
         }).always(function () { me.setLoading(false); });
+    },
+
+    getModelScopedStateId(modelName, id) {
+        return this.getContext().getScopedStateId(`${modelName}-${id}`);
     },
 
     getOptions: function () {
@@ -1080,79 +1364,42 @@ Ext.define("TSTimeInState", {
 
     //onSettingsUpdate:  Override
     onSettingsUpdate: function (settings) {
-        this.logger.log('onSettingsUpdate', settings);
-        // Ext.apply(this, settings);
         this.launch();
     },
 
-    _onHelpClicked: function () {
-        let helpHtml = `
-        <h3>Type and State Field</h3>
-        <p>This app shows a series of artifacts and the time spent in each "state". Begin by choosing the artifact type from the first dropdown. 
-        Upon choosing a type, the State Field dropdown will populate with possible attributes to use as states.</p>
-        
-        <h3>Start and End State</h3>
-        <p>After choosing a state field, select a beginning and end value from the dropdowns for that particular field. If an item enters and 
-        leaves the same state multiple times, the time in state is the sum of all time in that state.</p>
+    showError(msg, defaultMessage) {
+        if (typeof msg === 'object') {
+            console.log(msg);
+        }
+        Rally.ui.notify.Notifier.showError({ message: this.parseError(msg, defaultMessage) });
+    },
 
-        <h3>Start and End Date</h3>
-        <p>The next 2 inputs specify the date range for the report. A start date is required. If an end date is not specified, the app defaults 
-        to today. The app will only show items that entered the first selected state within this date range for the very first time. If the user 
-        picks 1 Jan 2020 to 1 Feb 2020 and the item entered the first state in December, then it will not show, even if that item left the state 
-        and entered it again in January.</p>
+    parseError(e, defaultMessage) {
+        defaultMessage = defaultMessage || 'An unknown error has occurred';
 
-        <h3>Project Picker</h3>
-        <p>The app allows for the selection individual projects. If this option is chosen, the app will look for history in those projects only. 
-        Otherwise, the app will look in the current project and its children.</p>
-        
-        <h3>Column Picker</h3>
-        <p>The report will always display the artifact ID, Name, Project and time in state data. Additional columns can be added to the report 
-        via the column picker. Any attributes selected via the picker will also appear in the export file.</p>
-
-        <h3>Days/Hours</h3>
-        <p>The toggle switch below the project and column pickers controls how the time in state data is summarized. H will show time in hours, 
-        D will show time in days.</p>
-
-        <h3>Filters</h3>
-        <p>At the top of the app is a series of filters allowing full control over the data displayed in the app. Additional filter help can be 
-        found by clicking on the help button within the filter area.</p>
-
-        <h3>Note on load times</h3>
-        <p>This app utilizes historical lookback data. A typical report in this app retrieves thousands of snapshots in order to calculate time 
-        in state. You may notice long load times or even timeouts when attempting to generate the report. If so, try reducing the date range and/or 
-        the number of projects included in the report (If you're currently within a project containing many child projects, the app will attempt to 
-        retrieve tens of thousands of snapshots, which takes substantial time to do).</p>
-        `;
-
-        this.helpDialog = Ext.create('Rally.ui.dialog.Dialog', {
-            autoShow: true,
-            layout: 'fit',
-            width: '85%',
-            closable: true,
-            autoDestroy: true,
-            buttonAlign: 'center',
-            autoScroll: true,
-            title: 'Using the Time in State App',
-            items: {
-                xtype: 'component',
-                cls: 'helpText',
-                html: helpHtml,
-                padding: 10,
-                style: 'font-size:12px;'
-            },
-            buttons: [
-                {
-                    xtype: "rallybutton",
-                    text: 'Close',
-                    cls: 'secondary rly-small',
-                    listeners: {
-                        click: () => {
-                            this.helpDialog.close();
-                        },
-                        scope: this
-                    }
+        if (typeof e === 'string' && e.length) {
+            return e;
+        }
+        if (e.message && e.message.length) {
+            return e.message;
+        }
+        if (e.exception && e.error && e.error.errors && e.error.errors.length) {
+            if (e.error.errors[0].length) {
+                return e.error.errors[0];
+            } else {
+                if (e.error && e.error.response && e.error.response.status) {
+                    return `${defaultMessage} (Status ${e.error.response.status})`;
                 }
-            ]
-        });
+            }
+        }
+        if (e.exceptions && e.exceptions.length && e.exceptions[0].error) {
+            return e.exceptions[0].error.statusText;
+        }
+        return defaultMessage;
+    },
+
+
+    _onHelpClicked: function () {
+        CustomAgile.ui.tutorial.TimeInStateTutorial.showWelcomeDialog(Rally.getApp());
     }
 });

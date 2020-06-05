@@ -26,7 +26,7 @@ Ext.define('Rally.ui.combobox.CustomPortfolioItemTypeComboBox', {
         }],
 
         valueField: 'TypePath',
-        displayField: 'DisplayName'
+        displayField: 'Name'
     },
 
     constructor: function (config) {
@@ -51,7 +51,7 @@ Ext.define('Rally.ui.combobox.CustomPortfolioItemTypeComboBox', {
                 filters: config.typeFilter,
                 listeners: {
                     load: function (store, records) {
-                        console.log('types:', records);
+                        // console.log('types:', records);
                     }
                 }
             }

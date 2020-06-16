@@ -1,12 +1,11 @@
 {
   "_comment": "This file is used by grunt",
   "name": "tsabc",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "dependencies": {
     "@agile-central-technical-services/utils-field-picker": "^1.0.3",
     "@customagile/ancestor-pi-multi-level-pi-app-filter": "git+https://github.com/CustomAgile/utils-ancestor-pi-app-filter.git",
     "@customagile/utils-field-renderer": "git+https://github.com/CustomAgile/utils-field-renderer.git",
-    "field-renderer": "git+https://github.com/CustomAgile/utils-field-renderer.git",
     "moment-weekday-calc": "^1.1.4"
   },
   "devDependencies": {

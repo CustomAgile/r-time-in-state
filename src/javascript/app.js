@@ -427,9 +427,9 @@ Ext.define("TSTimeInState", {
                     resolve(...args);
                 },
                 failure(error) {
-                    this.setLoading(false);
                     reject(error);
-                }
+                },
+                scope: this
             });
         });
     },
@@ -642,16 +642,16 @@ Ext.define("TSTimeInState", {
         }, 400);
     },
 
-    _addStateSelectors: function (container, field_name) {
+    _addStateSelectors: function (container, fieldName) {
         container.removeAll();
-        this.state_field_name = field_name;
+        this.stateFieldName = fieldName;
 
         container.add({
             xtype: 'rallyfieldvaluecombobox',
             model: this.model,
             itemId: 'start_state_selector',
             margin: '0 5 10 0',
-            field: field_name,
+            field: fieldName,
             fieldLabel: 'Start State',
             width: this.settingsWidth,
             labelWidth: this.labelWidth,
@@ -664,13 +664,26 @@ Ext.define("TSTimeInState", {
             xtype: 'rallyfieldvaluecombobox',
             model: this.model,
             itemId: 'end_state_selector',
-            field: field_name,
+            field: fieldName,
             fieldLabel: 'End State',
             width: this.settingsWidth,
             labelWidth: this.labelWidth,
             stateful: true,
             stateEvents: ['change'],
             stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-endstatecombo')
+        });
+
+        container.add({
+            xtype: 'rallycheckboxfield',
+            fieldLabel: 'Include Blocked Time For Each State',
+            labelSeparator: '',
+            itemId: 'includeBlockedTimeCheckbox',
+            width: this.settingsWidth,
+            labelWidth: this.settingsWidth - 20,
+            margin: '3 0 0 0',
+            stateful: true,
+            stateId: this.getModelScopedStateId(this.model.typePath, 'techservices-timeinstate-include-blocked-time-checkbox'),
+            stateEvents: ['change']
         });
     },
 
@@ -747,11 +760,11 @@ Ext.define("TSTimeInState", {
 
     _updateData: async function () {
         this._clearGrid();
-        var field_name = this.state_field_name;
+        var fieldName = this.stateFieldName;
 
         this.startState = this.down('#start_state_selector').getValue();
         this.endState = this.down('#end_state_selector').getValue();
-        if (field_name == "State" && /Portfolio/.test(this.model_name)) {
+        if (fieldName == "State" && /Portfolio/.test(this.model_name)) {
             this.startState = this.down('#start_state_selector').getRecord().get('name');
             this.endState = this.down('#end_state_selector').getRecord().get('name');
         }
@@ -770,9 +783,9 @@ Ext.define("TSTimeInState", {
 
         try {
             this._setValidStates();
-            let snapshots = await this._getChangeSnapshots(field_name);
+            let snapshots = await this._getChangeSnapshots(fieldName);
             let snaps_by_oid = this._organizeSnapshotsByOid(snapshots);
-            let rows_by_oid = this._setTimeInStatesForAll(snaps_by_oid, field_name);
+            let rows_by_oid = this._setTimeInStatesForAll(snaps_by_oid, fieldName);
             let rows = Ext.Object.getValues(rows_by_oid);
             rows = this._removeItemsOutsideTimeboxes(rows);
             rows = await this._syncWithCurrentData(rows);
@@ -957,16 +970,17 @@ Ext.define("TSTimeInState", {
         // });
     },
 
-    _setTimeInStatesForAll: function (snaps_by_oid, field_name) {
-        var rows_by_oid = {},
-            me = this;
+    _setTimeInStatesForAll: function (snaps_by_oid, fieldName) {
+        var rows_by_oid = {};
+        var me = this;
+        var includeBlocked = this.includeBlocked();
         Ext.Object.each(snaps_by_oid, function (key, snaps) {
-            rows_by_oid[key] = me._calculateTimeInState(snaps, field_name);
+            rows_by_oid[key] = me._calculateTimeInState(snaps, fieldName, includeBlocked);
         });
         return rows_by_oid;
     },
 
-    _calculateTimeInState: function (snapshots, field_name) {
+    _calculateTimeInState: function (snapshots, fieldName, includeBlocked) {
         var entries = {};  // date of entry into state, used for calc
         var last_index = snapshots.length - 1;
         var excludeWeekends = this.down('#excludeWeekendsCheckbox').getValue();
@@ -979,46 +993,118 @@ Ext.define("TSTimeInState", {
             snapshots[last_index].getData()
         );
 
+        // Initialize data points for each state
         Ext.Array.each(this.allowedStates, function (state) {
             row[state] = 0;
             entries[state] = null;
             row['firstEntry_' + state] = null;
             row['lastExit_' + state] = null;
-        });
+
+            if (includeBlocked) {
+                row[state + '_blocked'] = 0;
+                entries[state + '_blocked'] = null;
+                row['firstEntry_' + state + '_blocked'] = null;
+                row['lastExit_' + state + '_blocked'] = null;
+            }
+        }.bind(this));
 
         Ext.Array.each(snapshots, function (snap) {
-            var in_state = snap.get(field_name);
-            var snap_time = snap.get('_ValidFrom');
+            let fromState = snap.get('_PreviousValues.' + fieldName);
+            let toState = snap.get(fieldName);
+            let snapTime = snap.get('_ValidFrom');
+            let isBlocked = snap.get('Blocked');
+            let blockedChanged = typeof snap.get('Blocked') === 'boolean' && typeof snap.get('_PreviousValues.Blocked') === 'boolean';
 
-            entries[in_state] = snap_time;
-            row['lastExit_' + in_state] = null; // clear out for re-entry
-
-            if (Ext.isEmpty(row['firstEntry_' + in_state])) {
-                row['firstEntry_' + in_state] = snap_time;
-            }
-
-            var out_state = snap.get('_PreviousValues.' + field_name);
-
-            if (!Ext.isEmpty(entries[out_state])) {
-                let delta = 0;
-                if (excludeWeekends && format === 'Days') {
-                    delta = moment().isoWeekdayCalc(entries[out_state], snap_time, [1, 2, 3, 4, 5]);
-                    if (delta) {
-                        delta--;
-                    }
-                    delta *= 1440;
+            // For each snapshot, _PreviousValues will only contain fields that experienced a change at the exact time of the snapshot
+            // This will tell us whether the snapshot was taken due to a state change or a Blocked change or both
+            if (includeBlocked && blockedChanged) {
+                if (isBlocked) {
+                    // Note the time the artifact became blocked
+                    entries[toState + '_blocked'] = snapTime;
                 }
                 else {
-                    var jsStart = Rally.util.DateTime.fromIsoString(entries[out_state]);
-                    var jsEnd = Rally.util.DateTime.fromIsoString(snap_time);
-                    delta = Rally.util.DateTime.getDifference(jsEnd, jsStart, 'minute');
+                    // If state was changed at the same time
+                    if (fromState) {
+                        if (entries[fromState + '_blocked']) {
+                            // Add the duration of blocked time to the previous state
+                            let delta = this._getTimeDelta(entries[fromState + '_blocked'], snapTime, excludeWeekends, format);
+                            row[fromState + '_blocked'] += delta;
+                            entries[fromState + '_blocked'] = null;
+                        }
+                    }
+                    // Same state as before
+                    else {
+                        if (entries[toState + '_blocked']) {
+                            // Add the duration of blocked time to the current state
+                            let delta = this._getTimeDelta(entries[toState + '_blocked'], snapTime, excludeWeekends, format);
+                            row[toState + '_blocked'] += delta;
+                            entries[toState + '_blocked'] = null;
+                        }
+                    }
                 }
-                row[out_state] = row[out_state] + delta;
-                row['lastExit_' + out_state] = snap_time;
             }
-        });
+
+            if (fromState) {
+                if (includeBlocked) {
+                    // Case where artifact was already blocked and then entered a new state
+                    if (isBlocked && !blockedChanged) {
+                        entries[toState + '_blocked'] = snapTime;
+                        if (entries[fromState + '_blocked']) {
+                            let delta = this._getTimeDelta(entries[fromState + '_blocked'], snapTime, excludeWeekends, format);
+                            row[fromState + '_blocked'] += delta;
+                            entries[fromState + '_blocked'] = null;
+                        }
+                    }
+                }
+
+                entries[toState] = snapTime;
+                row['lastExit_' + toState] = null; // clear out for re-entry
+
+                if (Ext.isEmpty(row['firstEntry_' + toState])) {
+                    row['firstEntry_' + toState] = snapTime;
+                }
+
+                if (!Ext.isEmpty(entries[fromState])) {
+                    let delta = this._getTimeDelta(entries[fromState], snapTime, excludeWeekends, format);
+                    row[fromState] += delta;
+                    row['lastExit_' + fromState] = snapTime;
+                }
+            }
+        }.bind(this));
+
+        // Add time to the current state of each row
+        Ext.Array.each(this.allowedStates, function (state) {
+            if (row['firstEntry_' + state] && !row['lastExit_' + state] && entries[state]) {
+                let delta = this._getTimeDelta(entries[state], Rally.util.DateTime.toIsoString(new Date()), excludeWeekends, format);
+                row[state] = row[state] + delta;
+            }
+            else if (!row['firstEntry_' + state] && !row['lastExit_' + state]) {
+                row[state] = '';
+                if (includeBlocked) {
+                    row[state + '_blocked'] = '';
+                }
+            }
+
+            if (includeBlocked && entries[state + '_blocked']) {
+                let delta = this._getTimeDelta(entries[state + '_blocked'], Rally.util.DateTime.toIsoString(new Date()), excludeWeekends, format);
+                row[state + '_blocked'] = row[state + '_blocked'] + delta;
+            }
+        }.bind(this));
 
         return row;
+    },
+
+    _getTimeDelta: function (start, end, excludeWeekends, format) {
+        if (excludeWeekends && format === 'Days') {
+            let delta = moment().isoWeekdayCalc(start, end, [1, 2, 3, 4, 5]);
+            if (delta) { delta--; }
+            return delta * 1440;
+        }
+        else {
+            var jsStart = Rally.util.DateTime.fromIsoString(start);
+            var jsEnd = Rally.util.DateTime.fromIsoString(end);
+            return Rally.util.DateTime.getDifference(jsEnd, jsStart, 'minute');
+        }
     },
 
     _getModelName: function () {
@@ -1047,19 +1133,17 @@ Ext.define("TSTimeInState", {
 
         Ext.Array.each(snapshots, function (snap) {
             var oid = snap.get('ObjectID');
-
             if (Ext.isEmpty(snapshots_by_oid[oid])) {
                 snapshots_by_oid[oid] = [];
             }
 
             snapshots_by_oid[oid].push(snap);
-
         });
 
         return snapshots_by_oid;
     },
 
-    _getChangeSnapshots: async function (field_name) {
+    _getChangeSnapshots: async function (fieldName) {
         var filters = Ext.create('Rally.data.lookback.QueryFilter', {
             property: '_TypeHierarchy',
             value: this._getModelName()
@@ -1083,19 +1167,30 @@ Ext.define("TSTimeInState", {
         });
 
         let change_filters = Ext.create('Rally.data.lookback.QueryFilter', {
-            property: '_PreviousValues.' + field_name,
+            property: '_PreviousValues.' + fieldName,
             operator: 'exists',
             value: true
         });
 
+        var fetch_base = ['ObjectID', 'FormattedID',
+            'Project', '_TypeHierarchy', '_PreviousValues',
+            fieldName, '_PreviousValues.' + fieldName, '_ValidFrom', '_ValidTo'];
+
+        if (this.includeBlocked()) {
+            fetch_base = fetch_base.concat(['Blocked', '_PreviousValues.Blocked']);
+            let blocked_filters = Ext.create('Rally.data.lookback.QueryFilter', {
+                property: '_PreviousValues.Blocked',
+                operator: 'exists',
+                value: true
+            });
+
+            change_filters = change_filters.or(blocked_filters);
+        }
+
         endFilter = endFilter.and(change_filters);
         filters = filters.and(endFilter);
 
-        var fetch_base = ['ObjectID', 'FormattedID', 'Name',
-            'Project', '_TypeHierarchy', '_PreviousValues',
-            field_name, '_PreviousValues.' + field_name];
-
-        var hydrate = ['_PreviousValues.' + field_name, field_name];
+        var hydrate = ['_PreviousValues.' + fieldName, fieldName];
 
         var config = {
             filters,
@@ -1103,6 +1198,7 @@ Ext.define("TSTimeInState", {
             hydrate,
             limit: Infinity,
             enablePostGet: true,
+            useHttpPost: true,
             compress: true,
             removeUnauthorizedSnapshots: true
         };
@@ -1110,6 +1206,10 @@ Ext.define("TSTimeInState", {
         this.setLoading('Loading Historical Snapshots...');
 
         return this.wrap(Ext.create('Rally.data.lookback.SnapshotStore', config).load());
+    },
+
+    includeBlocked: function () {
+        return this.down('#includeBlockedTimeCheckbox').getValue();
     },
 
     _getModel: function (model_name) {
@@ -1242,6 +1342,7 @@ Ext.define("TSTimeInState", {
 
     _getColumns: function () {
         var me = this;
+        var includeBlocked = this.includeBlocked();
         var metric = me.down('#metricCombo').getValue();
         var showDateColumns = this.down('#columnDetailCombo').getValue() === 'timeAndDates';
         var columns = [
@@ -1273,7 +1374,7 @@ Ext.define("TSTimeInState", {
                 dataIndex: state,
                 text: Ext.String.format('{0} ({1})', state, metric),
                 align: 'right',
-                renderer: function (value, meta, record) {
+                renderer: function (value) {
                     if (Ext.isEmpty(value)) { return ""; }
                     let minutes = metric === 'Weeks' ? 10080 : 1440;
                     return Ext.Number.toFixed(value / minutes, 1);
@@ -1293,6 +1394,19 @@ Ext.define("TSTimeInState", {
                     text: state + ' last exited',
                     align: 'right',
                     renderer: date_renderer
+                });
+            }
+
+            if (includeBlocked) {
+                columns.push({
+                    dataIndex: state + '_blocked',
+                    text: Ext.String.format('{0} {1} ({2})', state, 'Blocked', metric),
+                    align: 'right',
+                    renderer: function (value) {
+                        if (Ext.isEmpty(value)) { return ""; }
+                        let minutes = metric === 'Weeks' ? 10080 : 1440;
+                        return Ext.Number.toFixed(value / minutes, 1);
+                    }
                 });
             }
         });

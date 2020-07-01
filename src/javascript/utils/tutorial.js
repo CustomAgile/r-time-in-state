@@ -4,6 +4,14 @@ Ext.define('CustomAgile.ui.tutorial.TimeInStateTutorial', {
     welcomeHtml: `
     <p>This app displays a grid of work items and the time each item spent in each "state".</p>
     <p>Additional fields can be added to the grid as columns and the data can be exported to a CSV file.</p>
+    <p><b>Data caveats:</b></p>
+    <ul>
+        <li>Only changes to state or blockers between the start date and end date (today's date if end date is blank) 
+            are retrieved. Any changes before this period will not be reflected in the report and may cause certain time 
+            in state values to be off from expectations.</li>
+        <li>If an artifact is moved in and out of the selected project scoping, those changes to the state or blockers 
+            while outside of the scope will not be captured in the report.</li>
+    </ul>
     `,
 
     defaultOffset: [
@@ -72,9 +80,11 @@ Ext.define('CustomAgile.ui.tutorial.TimeInStateTutorial', {
             <p><b>Type: </b>The work item type to show in the grid</p>
             <p><b>State Field: </b>Once a type is selected, the state field dropdown populates with possible fields that could be used to show the work items' transitions across states and the duration in each state.</p>
             <p><b>Start State / End State: </b>The range of states to include in the report. Any states before the start state and after the end state will not show in the report. If an item enters and 
-        leaves the same state multiple times, the time in state is the sum of all time in that state.</p>
+            leaves the same state multiple times, the time in state is the sum of all time in that state.</p>
+            <p><b>Include Blocked Time For Each State: </b>Selecting this checkbox will add a column for every state which provides the duration in which each artifact was blocked while in that state. The duration is 
+            in the same time format as the time in state metric.</p>
             <p><b>Start Date / End Date: </b>The next 2 inputs specify the date range for the report. A start date is required. If an end date is not specified, the app defaults 
-        to today. The app will only show items that have experienced at least one state transition within the specified date range.</p>
+            to today. The app will only show items that have experienced at least one state transition within the specified date range.</p>
             <p><b>Columns: </b>For a cleaner looking grid (especially one that includes many states), selecting "Time In State" will only show a single column for each state, specifying the amount of time each work item was in 
             each state. Selecting "Time In State And Enter/Exit Dates" will also include columns specifying the dates at which the work items first entered and last exited each state.</p>
             <p><b>Format: </b>The time in state can be formatted as number of days or number of weeks spent in each state.</p>
@@ -139,7 +149,7 @@ Ext.define('CustomAgile.ui.tutorial.TimeInStateTutorial', {
             layout: 'fit',
             componentCls: 'rly-popover dark-container',
             width: 500,
-            height: 300,
+            height: 400,
             closable: true,
             autoDestroy: true,
             buttonAlign: 'center',
